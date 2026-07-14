@@ -1,9 +1,9 @@
 """Shared fixtures for PostgreSQL integration tests.
 
-Requires TEST_DATABASE_URL environment variable pointing to a PostgreSQL
+Requires ``TEST_DATABASE_URL`` environment variable pointing to a PostgreSQL
 instance. If not set, tests are skipped with a clear message.
 
-Default: `postgresql+asyncpg://xauusdt:xauusdt@localhost:5432/xauusdt_test`.
+Default: ``postgresql+asyncpg://xauusdt:xauusdt@localhost:5432/xauusdt_test``.
 In CI the variable is set automatically by the workflow; the step
 "Create test database" must run before ``uv run pytest``.
 """
@@ -18,13 +18,8 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
-# type check guard — empty block is fine for session-scoped fixtures
-if False:
-    pass
-
-
 # ------------------------------------------------------------------
-# Database URL from environment or CI defaults
+# Database URL
 # ------------------------------------------------------------------
 
 TEST_DB_URL: str = os.environ.get(
@@ -33,12 +28,7 @@ TEST_DB_URL: str = os.environ.get(
 )
 
 
-# ------------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------------
-
-
-def _can_connect(url: str) -> bool:  # type: ignore[reportUnknownVariableType]
+def _can_connect(url: str) -> bool:
     """Check if a PostgreSQL connection is possible."""
     try:
         loop = asyncio.new_event_loop()
@@ -73,7 +63,7 @@ def pytest_configure(config: Any) -> None:
         "postgres: mark test as requiring PostgreSQL (skip if unavailable)",
     )
     _pg_available = _can_connect(TEST_DB_URL)
-    config._pg_available = _pg_available  # type: ignore[attr-defined]
+    config._pg_available = _pg_available
 
 
 def pytest_runtest_setup(item: Any) -> None:
@@ -82,42 +72,38 @@ def pytest_runtest_setup(item: Any) -> None:
         return
     pg_available = getattr(item.config, "_pg_available", False)
     if not pg_available:
-        pytest.skip("PostgreSQL not available; set TEST_DATABASE_URL to enable")  # type: ignore[misc]
+        pytest.skip("PostgreSQL not available; set TEST_DATABASE_URL to enable")
 
 
 # ------------------------------------------------------------------
-# Session-scoped engine and session fixtures
+# Fixtures
 # ------------------------------------------------------------------
 
 
 @pytest.fixture(scope="session")
-def test_engine() -> AsyncEngine:  # type: ignore[reportUnknownVariableType]
-    """Create a session-scoped PostgreSQL engine."""
+def pg_engine() -> AsyncEngine:
+    """Session-scoped PostgreSQL engine."""
     engine = create_async_engine(TEST_DB_URL, echo=False, pool_pre_ping=True)
     yield engine
     asyncio.get_event_loop().run_until_complete(engine.dispose())
 
 
 @pytest.fixture(scope="session")
-def test_session(test_engine: AsyncEngine) -> AsyncSession:  # type: ignore[reportUnknownVariableType]
-    """Create a session-scoped PostgreSQL session."""
-    from xauusdt.storage.database import create_tables, init_db  # noqa: PLC0415
+def pg_session(pg_engine: AsyncEngine) -> AsyncSession:
+    """Session-scoped PostgreSQL session."""
+    from xauusdt.storage.database import create_tables, init_db
 
     async def _setup() -> AsyncSession:
         await init_db(TEST_DB_URL)
         await create_tables()
-        async with test_engine.begin() as conn:
+
+        # Reset schema state
+        async with pg_engine.begin() as conn:
             await conn.execute(text("DROP TABLE IF EXISTS candle_sticks CASCADE"))
-            await conn.execute(
-                text("CREATE TABLE IF NOT EXISTS candle_sticks (id SERIAL PRIMARY KEY)")
-            )
             await conn.commit()
-        async with test_engine.begin() as conn:
-            await conn.execute(text("DELETE FROM candle_sticks"))
-            await conn.commit()
-        # Create a session from the engine directly
-        async with test_engine.connect() as conn:
+
+        async with pg_engine.connect() as conn:
             session = AsyncSession(conn, autoflush=False)
             return session
 
-    return asyncio.get_event_loop().run_until_complete(_setup())  # type: ignore[return-value]
+    return asyncio.get_event_loop().run_until_complete(_setup())

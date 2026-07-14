@@ -64,33 +64,33 @@ class TestCandleInsertPostgres:
     """Test CandleRepository.insert against PostgreSQL."""
 
     @pytest.mark.asyncio
-    async def test_insert_single_candle(self, test_session: AsyncSession) -> None:
+    async def test_insert_single_candle(self, pg_session: AsyncSession) -> None:
         """Insert a single candle via repository."""
         candle = _make_candle()
-        repo = CandleRepository(test_session)
+        repo = CandleRepository(pg_session)
         orm = await repo.insert(candle)
-        await test_session.commit()
+        await pg_session.commit()
 
         assert orm.id is not None
         assert orm.symbol == TEST_SYMBOL
         assert orm.open_time == candle.open_time
 
         # Verify it exists in DB
-        result = await test_session.execute(
+        result = await pg_session.execute(
             text("SELECT COUNT(*) FROM candles WHERE symbol = :sym"),
             {"sym": TEST_SYMBOL},
         )
         assert result.scalar() == 1
 
     @pytest.mark.asyncio
-    async def test_insert_duplicate_raises(self, test_session: AsyncSession) -> None:
+    async def test_insert_duplicate_raises(self, pg_session: AsyncSession) -> None:
         """Inserting a duplicate candle raises unique constraint error."""
         candle = _make_candle()
-        repo = CandleRepository(test_session)
+        repo = CandleRepository(pg_session)
 
         # First insert succeeds
         await repo.insert(candle)
-        await test_session.commit()
+        await pg_session.commit()
 
         # Second insert with same key raises IntegrityError
         candle2 = _make_candle()
@@ -98,45 +98,45 @@ class TestCandleInsertPostgres:
 
         with pytest.raises(IntegrityError):
             await repo.insert(candle2)
-            await test_session.commit()
+            await pg_session.commit()
 
 
 class TestUpsertManyPostgres:
     """Test CandleRepository.upsert_many idempotency on PostgreSQL."""
 
     @pytest.mark.asyncio
-    async def test_upsert_many_first_time(self, test_session: AsyncSession) -> None:
+    async def test_upsert_many_first_time(self, pg_session: AsyncSession) -> None:
         """First upsert inserts all new candles."""
         candles = [_make_candle(i) for i in range(10)]
-        repo = CandleRepository(test_session)
+        repo = CandleRepository(pg_session)
         count = await repo.upsert_many(candles)
-        await test_session.commit()
+        await pg_session.commit()
 
         assert count == 10
 
-        result = await test_session.execute(
+        result = await pg_session.execute(
             text("SELECT COUNT(*) FROM candles WHERE symbol = :sym"),
             {"sym": TEST_SYMBOL},
         )
         assert result.scalar() == 10
 
     @pytest.mark.asyncio
-    async def test_upsert_many_idempotent_rerun(self, test_session: AsyncSession) -> None:
+    async def test_upsert_many_idempotent_rerun(self, pg_session: AsyncSession) -> None:
         """Rerunning upsert with same candles does not create duplicates."""
         candles = [_make_candle(i) for i in range(5)]
-        repo = CandleRepository(test_session)
+        repo = CandleRepository(pg_session)
 
         # First upsert
         count1 = await repo.upsert_many(candles)
-        await test_session.commit()
+        await pg_session.commit()
         assert count1 == 5
 
         # Second upsert (same candles)
         count2 = await repo.upsert_many(candles)
-        await test_session.commit()
+        await pg_session.commit()
         assert count2 == 5  # ON CONFLICT DO UPDATE updates, does not insert
 
-        result = await test_session.execute(
+        result = await pg_session.execute(
             text("SELECT COUNT(*) FROM candles WHERE symbol = :sym"),
             {"sym": TEST_SYMBOL},
         )
@@ -144,15 +144,15 @@ class TestUpsertManyPostgres:
 
     @pytest.mark.asyncio
     async def test_upsert_many_updates_existing_deterministically(
-        self, test_session: AsyncSession
+        self, pg_session: AsyncSession
     ) -> None:
         """Updating existing candles deterministically modifies the row."""
         candles = [_make_candle(i) for i in range(3)]
-        repo = CandleRepository(test_session)
+        repo = CandleRepository(pg_session)
 
         # First upsert
         await repo.upsert_many(candles)
-        await test_session.commit()
+        await pg_session.commit()
 
         # Upsert with modified values
         updated_candles = [
@@ -170,11 +170,11 @@ class TestUpsertManyPostgres:
             for candle in candles
         ]
         count = await repo.upsert_many(updated_candles)
-        await test_session.commit()
+        await pg_session.commit()
         assert count == 3
 
         # Verify values were updated
-        result = await test_session.execute(
+        result = await pg_session.execute(
             text(
                 "SELECT open, high, low, close, volume FROM candles "
                 "WHERE symbol = :sym AND open_time = :ot"
@@ -187,13 +187,13 @@ class TestUpsertManyPostgres:
         assert abs(row.close - 9999.0) < 0.001
 
     @pytest.mark.asyncio
-    async def test_upsert_many_mixed_new_and_existing(self, test_session: AsyncSession) -> None:
+    async def test_upsert_many_mixed_new_and_existing(self, pg_session: AsyncSession) -> None:
         """Upsert with mix of new and existing candles."""
         # Insert 3 candles first
         existing = [_make_candle(i) for i in range(3)]
-        repo = CandleRepository(test_session)
+        repo = CandleRepository(pg_session)
         await repo.upsert_many(existing)
-        await test_session.commit()
+        await pg_session.commit()
 
         # Upsert with 2 existing + 2 new
         new_candles = [
@@ -203,10 +203,10 @@ class TestUpsertManyPostgres:
             _make_candle(4),  # new
         ]
         count = await repo.upsert_many(new_candles)
-        await test_session.commit()
+        await pg_session.commit()
         assert count == 4  # PostgreSQL returns affected rows (updates + inserts)
 
-        result = await test_session.execute(
+        result = await pg_session.execute(
             text("SELECT COUNT(*) FROM candles WHERE symbol = :sym"),
             {"sym": TEST_SYMBOL},
         )
@@ -217,13 +217,13 @@ class TestUniqueConstraintPostgres:
     """Test that PostgreSQL unique constraint is enforced."""
 
     @pytest.mark.asyncio
-    async def test_unique_constraint_enforced(self, test_session: AsyncSession) -> None:
+    async def test_unique_constraint_enforced(self, pg_session: AsyncSession) -> None:
         """PostgreSQL rejects duplicate (symbol, granularity, open_time)."""
         candle = _make_candle()
-        repo = CandleRepository(test_session)
+        repo = CandleRepository(pg_session)
 
         await repo.insert(candle)
-        await test_session.commit()
+        await pg_session.commit()
 
         from sqlalchemy.exc import IntegrityError
 
@@ -239,11 +239,11 @@ class TestUniqueConstraintPostgres:
                 volume=0.0,
             )
             await repo.insert(duplicate)
-            await test_session.commit()
+            await pg_session.commit()
 
     @pytest.mark.asyncio
     async def test_unique_constraint_allows_different_symbol(
-        self, test_session: AsyncSession
+        self, pg_session: AsyncSession
     ) -> None:
         """Same granularity + open_time but different symbol is allowed."""
         candle1 = Candle(
@@ -266,13 +266,13 @@ class TestUniqueConstraintPostgres:
             close=200.0,
             volume=200.0,
         )
-        repo = CandleRepository(test_session)
+        repo = CandleRepository(pg_session)
 
         await repo.insert(candle1)
         await repo.insert(candle2)
-        await test_session.commit()  # Should not raise
+        await pg_session.commit()  # Should not raise
 
-        result = await test_session.execute(
+        result = await pg_session.execute(
             text("SELECT COUNT(*) FROM candles WHERE open_time = :ot"),
             {"ot": BASE_TIME},
         )
@@ -283,17 +283,17 @@ class TestTimezonePostgres:
     """Test timezone-aware UTC datetime handling."""
 
     @pytest.mark.asyncio
-    async def test_utc_timestamps_preserved(self, test_session: AsyncSession) -> None:
+    async def test_utc_timestamps_preserved(self, pg_session: AsyncSession) -> None:
         """UTC timestamps are stored and retrieved correctly."""
         exact_time = datetime(2025, 6, 15, 12, 30, 0, tzinfo=UTC)
         candle = _make_candle_with_time(exact_time)
-        repo = CandleRepository(test_session)
+        repo = CandleRepository(pg_session)
 
         await repo.insert(candle)
-        await test_session.commit()
+        await pg_session.commit()
 
         # Retrieve directly from DB
-        result = await test_session.execute(
+        result = await pg_session.execute(
             text("SELECT open_time FROM candles WHERE symbol = :sym AND open_time = :ot"),
             {"sym": TEST_SYMBOL, "ot": exact_time},
         )
@@ -303,7 +303,7 @@ class TestTimezonePostgres:
         assert row.open_time.tzinfo is not None
 
     @pytest.mark.asyncio
-    async def test_timezone_aware_in_repo_query(self, test_session: AsyncSession) -> None:
+    async def test_timezone_aware_in_repo_query(self, pg_session: AsyncSession) -> None:
         """CandleRepository.query_by_range works with timezone-aware datetimes."""
         start = datetime(2025, 1, 1, 0, 0, tzinfo=UTC)
         middle = datetime(2025, 1, 1, 1, 0, tzinfo=UTC)
@@ -342,9 +342,9 @@ class TestTimezonePostgres:
                 volume=300.0,
             ),
         ]
-        repo = CandleRepository(test_session)
+        repo = CandleRepository(pg_session)
         await repo.upsert_many(candles)
-        await test_session.commit()
+        await pg_session.commit()
 
         # Query range [start, middle]
         results = await repo.query_by_range(TEST_SYMBOL, "1H", start_time=start, end_time=middle)
@@ -359,7 +359,7 @@ class TestQueryByRangePostgres:
     """Test CandleRepository.query_by_range on PostgreSQL."""
 
     @pytest.mark.asyncio
-    async def test_query_by_range_sorted(self, test_session: AsyncSession) -> None:
+    async def test_query_by_range_sorted(self, pg_session: AsyncSession) -> None:
         """query_by_range returns candles sorted ascending by open_time."""
         candles = [
             Candle(
@@ -393,9 +393,9 @@ class TestQueryByRangePostgres:
                 volume=15.0,
             ),
         ]
-        repo = CandleRepository(test_session)
+        repo = CandleRepository(pg_session)
         await repo.upsert_many(candles)
-        await test_session.commit()
+        await pg_session.commit()
 
         results = await repo.query_by_range(
             TEST_SYMBOL,
@@ -408,7 +408,7 @@ class TestQueryByRangePostgres:
         assert len(results) == 3
 
     @pytest.mark.asyncio
-    async def test_query_by_range_filtering(self, test_session: AsyncSession) -> None:
+    async def test_query_by_range_filtering(self, pg_session: AsyncSession) -> None:
         """query_by_range filters by symbol and granularity."""
         candles = [
             Candle(
@@ -432,9 +432,9 @@ class TestQueryByRangePostgres:
                 volume=20.0,
             ),
         ]
-        repo = CandleRepository(test_session)
+        repo = CandleRepository(pg_session)
         await repo.upsert_many(candles)
-        await test_session.commit()
+        await pg_session.commit()
 
         results = await repo.query_by_range(
             "XAUUSDT_UMCBL", "15m", start_time=BASE_TIME, end_time=BASE_TIME.replace(hour=1)
@@ -447,7 +447,7 @@ class TestLatestOpenTimePostgres:
     """Test CandleRepository.latest_open_time on PostgreSQL."""
 
     @pytest.mark.asyncio
-    async def test_latest_open_time_returns_max(self, test_session: AsyncSession) -> None:
+    async def test_latest_open_time_returns_max(self, pg_session: AsyncSession) -> None:
         """latest_open_time returns the maximum open_time for the symbol/granularity."""
         candles = [
             Candle(
@@ -481,17 +481,17 @@ class TestLatestOpenTimePostgres:
                 volume=1.0,
             ),
         ]
-        repo = CandleRepository(test_session)
+        repo = CandleRepository(pg_session)
         await repo.upsert_many(candles)
-        await test_session.commit()
+        await pg_session.commit()
 
         latest = await repo.latest_open_time(TEST_SYMBOL, TEST_GRANULARITY)
         assert latest == datetime(2025, 1, 1, 2, 0, tzinfo=UTC)
 
     @pytest.mark.asyncio
-    async def test_latest_open_time_none_when_empty(self, test_session: AsyncSession) -> None:
+    async def test_latest_open_time_none_when_empty(self, pg_session: AsyncSession) -> None:
         """latest_open_time returns None when no candles exist."""
-        repo = CandleRepository(test_session)
+        repo = CandleRepository(pg_session)
         latest = await repo.latest_open_time("NONEXISTENT", "5m")
         assert latest is None
 
@@ -500,7 +500,7 @@ class TestCountInRangePostgres:
     """Test CandleRepository.count_in_range on PostgreSQL."""
 
     @pytest.mark.asyncio
-    async def test_count_in_range(self, test_session: AsyncSession) -> None:
+    async def test_count_in_range(self, pg_session: AsyncSession) -> None:
         """count_in_range returns correct count for a time range."""
         candles = [
             Candle(
@@ -515,9 +515,9 @@ class TestCountInRangePostgres:
             )
             for h in [0, 1, 2, 3, 4]
         ]
-        repo = CandleRepository(test_session)
+        repo = CandleRepository(pg_session)
         await repo.upsert_many(candles)
-        await test_session.commit()
+        await pg_session.commit()
 
         # Count [0, 3]
         count = await repo.count_in_range(
@@ -533,9 +533,9 @@ class TestCountInRangePostgres:
         assert count_all == 5
 
     @pytest.mark.asyncio
-    async def test_count_in_range_empty(self, test_session: AsyncSession) -> None:
+    async def test_count_in_range_empty(self, pg_session: AsyncSession) -> None:
         """count_in_range returns 0 when no candles match."""
-        repo = CandleRepository(test_session)
+        repo = CandleRepository(pg_session)
         count = await repo.count_in_range(
             "NONEXISTENT",
             "5m",
