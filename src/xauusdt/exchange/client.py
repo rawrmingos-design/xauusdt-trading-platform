@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -19,7 +20,13 @@ from xauusdt.exchange.exceptions import (
     BitgetRequestError,
     BitgetServerError,
 )
-from xauusdt.exchange.models import BitgetApiResponse, Contract, ContractInfo, to_contract
+from xauusdt.exchange.models import (
+    BitgetApiResponse,
+    Candle,
+    Contract,
+    ContractInfo,
+    to_contract,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -155,3 +162,69 @@ class BitgetPublicClient:
             if c.symbol == symbol:
                 return c
         return None
+
+    async def get_history_candles(
+        self,
+        symbol: str,
+        granularity: str,
+        limit: int = 200,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+    ) -> list[Candle]:
+        """Retrieve historical OHLCV candles for a futures symbol.
+
+        Args:
+            symbol: Instrument symbol, e.g. ``XAUUSDT_UMCBL``.
+            granularity: Candle size — ``5m``, ``15m``, ``1H``, ``4H``, etc.
+            limit: Max candles per request (1-200). Default 200.
+            start_time: Optional UTC start bound.
+            end_time: Optional UTC end bound.
+
+        Returns:
+            List of ``Candle`` models sorted ascending by ``open_time``.
+        """
+        self._validate_granularity(granularity)
+
+        params: dict[str, Any] = {
+            "symbol": symbol,
+            "granularity": granularity,
+            "limit": min(max(limit, 1), 200),
+        }
+        if start_time:
+            params["startTime"] = str(int(start_time.timestamp() * 1000))
+        if end_time:
+            params["endTime"] = str(int(end_time.timestamp() * 1000))
+
+        resp = await self._request(
+            "GET",
+            "/api/v2/mix/market/history-candles",
+            params=params,
+        )
+        api_resp = BitgetApiResponse(**resp)
+        if not api_resp.data:
+            return []
+
+        candles = [self._parse_candle(symbol, granularity, row) for row in api_resp.data]
+        return sorted(candles, key=lambda c: c.open_time)
+
+    @staticmethod
+    def _validate_granularity(granularity: str) -> None:
+        allowed = {"1m", "5m", "15m", "30m", "1H", "4H", "1D"}
+        if granularity not in allowed:
+            raise ValueError(f"Unsupported granularity {granularity!r}. Allowed: {sorted(allowed)}")
+
+    @staticmethod
+    def _parse_candle(symbol: str, granularity: str, row: list[str]) -> Candle:
+        """Convert raw API row ``[ts, open, high, low, close, volume, quote_volume]``."""
+        ts_ms = int(row[0])
+        return Candle(
+            symbol=symbol,
+            granularity=granularity,
+            open_time=datetime.fromtimestamp(ts_ms / 1000, tz=UTC),
+            open=float(row[1]),
+            high=float(row[2]),
+            low=float(row[3]),
+            close=float(row[4]),
+            volume=float(row[5]),
+            quote_volume=float(row[6]) if len(row) > 6 else 0.0,
+        )

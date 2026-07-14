@@ -7,7 +7,7 @@ from xauusdt.exchange.exceptions import (
     BitgetRequestError,
     BitgetServerError,
 )
-from xauusdt.exchange.models import Contract, ContractInfo
+from xauusdt.exchange.models import Candle, Contract, ContractInfo
 
 __all__ = [
     "BitgetPublicClient",
@@ -15,6 +15,7 @@ __all__ = [
     "BitgetRateLimitError",
     "BitgetRequestError",
     "BitgetServerError",
+    "Candle",
     "Contract",
     "ContractInfo",
 ]
