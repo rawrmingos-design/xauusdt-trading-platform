@@ -159,3 +159,4 @@ uv run xauusdt-collect --granularities 5m --log-level DEBUG
 ### Shutdown
 
 Send `SIGINT` (Ctrl+C) or `SIGTERM` for graceful shutdown. The collector will disconnect cleanly from the WebSocket and close the database connection.
+
