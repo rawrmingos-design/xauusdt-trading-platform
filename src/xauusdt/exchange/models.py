@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -58,3 +59,33 @@ def to_contract(info: ContractInfo) -> Contract:
         price_precision=int(info.price_place) if info.price_place else 0,
         volume_precision=int(info.volume_place) if info.volume_place else 0,
     )
+
+
+class Candle(BaseModel):
+    """Normalized OHLCV candle for Bitget futures."""
+
+    symbol: str
+    granularity: str
+    open_time: datetime  # timezone-aware UTC
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+    quote_volume: float = 0.0
+
+    @property
+    def close_time(self) -> datetime:
+        """Approximate close time (open_time + granularity)."""
+        # Granularity mapping to seconds
+        granularity_seconds = {
+            "1m": 60,
+            "5m": 300,
+            "15m": 900,
+            "30m": 1800,
+            "1H": 3600,
+            "4H": 14400,
+            "1D": 86400,
+        }
+        seconds = granularity_seconds.get(self.granularity, 60)
+        return self.open_time + timedelta(seconds=seconds)
