@@ -40,6 +40,9 @@ def pytest_configure(config: Any) -> None:
         "markers",
         "postgres: mark test as requiring PostgreSQL (skip if unavailable)",
     )
+    # Check PG at config time so skip reason is clear
+    _pg_available = _can_connect(TEST_DB_URL)
+    config._pg_available = _pg_available  # type: ignore[attr-defined]
 
 
 def _can_connect(url: str) -> bool:  # type: ignore[reportUnknownVariableType]
@@ -66,10 +69,11 @@ def _can_connect(url: str) -> bool:  # type: ignore[reportUnknownVariableType]
 
 
 def pytest_runtest_setup(item: Any) -> None:
-    """Skip tests in tests/integration/ that have postgres marker if DB unavailable."""
+    """Skip PostgreSQL tests if database is unavailable."""
     if "test_candle_repository_postgres" not in str(item.module.__file__):
         return
-    if not _can_connect(TEST_DB_URL):
+    pg_available = getattr(item.config, "_pg_available", False)
+    if not pg_available:
         pytest.skip("PostgreSQL not available; set TEST_DATABASE_URL to enable")  # type: ignore[misc]
 
 
