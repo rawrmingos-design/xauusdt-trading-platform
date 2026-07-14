@@ -160,3 +160,146 @@ uv run xauusdt-collect --granularities 5m --log-level DEBUG
 
 Send `SIGINT` (Ctrl+C) or `SIGTERM` for graceful shutdown. The collector will disconnect cleanly from the WebSocket and close the database connection.
 
+---
+
+## Operational Runbook
+
+### Live Collector Smoke Run
+
+Run the live WebSocket collector on the VPS for a 6–24 hour validation period:
+
+```bash
+# Start collector in background, logging to file
+nohup uv run xauusdt-collect \
+  --symbol XAUUSDT_UMCBL \
+  --granularities 5m,15m,1H,4H \
+  --db-url "$DATABASE_URL" \
+  --log-level INFO \
+  >> /var/log/xauusdt/collector.log 2>&1 &
+
+# Monitor live logs
+tail -f /var/log/xauusdt/collector.log
+```
+
+Expected behavior:
+- Collector connects to Bitget WebSocket on startup
+- Logs `Connected to WebSocket` on successful connect
+- Logs `Candle snapshot received: 5m, 14:00` for each interval snapshot
+- Logs `Persisted 1 candle(s)` when finalizing a candle
+- Logs reconnect attempts with backoff on disconnect
+- Gracefully shuts down on SIGTERM (clean disconnect)
+
+### 6-Hour Validation
+
+After running for 6 hours, validate continuity:
+
+```bash
+# Validate last 6 hours of 15m candles
+uv run python tools/validate_candles.py \
+  --symbol XAUUSDT_UMCBL \
+  --granularity 15m \
+  --start-time 2026-07-14T06:00:00Z \
+  --end-time 2026-07-14T12:00:00Z \
+  --db-url "$DATABASE_URL" \
+  --output json
+
+# Validate all granularities
+for GRAN in 5m 15m 1H 4H; do
+  uv run python tools/validate_candles.py \
+    --symbol XAUUSDT_UMCBL \
+    --granularity "$GRAN" \
+    --start-time 2026-07-14T06:00:00Z \
+    --end-time 2026-07-14T12:00:00Z \
+    --db-url "$DATABASE_URL" \
+    --output json
+done
+```
+
+Expected: `status: "passed"` or `"warning"` (minor gaps acceptable during startup).
+If `status: "failed"` with `duplicate_count > 0`, investigate duplicate persistence.
+
+### Compare DB vs REST
+
+Verify stored candles match REST historical data:
+
+```bash
+uv run python tools/compare_candles.py \
+  --symbol XAUUSDT_UMCBL \
+  --granularity 15m \
+  --start-time 2026-07-14T00:00:00Z \
+  --end-time 2026-07-14T12:00:00Z \
+  --db-url "$DATABASE_URL" \
+  --tolerance 0.00000001 \
+  --output json
+```
+
+Expected: `status: "passed"`, `matched == rest_count == db_count`, `mismatched == 0`.
+If `missing_in_db > 0`, run backfill for the missing range.
+If `mismatched > 0`, check for data corruption in storage.
+
+### Recovering Gaps
+
+When validation detects gaps after collector downtime:
+
+```bash
+# Run backfill for the gap range
+uv run xauusdt-backfill \
+  --symbol XAUUSDT_UMCBL \
+  --granularities 5m,15m,1H,4H \
+  --days 1 \
+  --dry-run          # First check what will change
+  --db-url "$DATABASE_URL"
+
+# Apply (remove --dry-run to persist)
+uv run xauusdt-backfill \
+  --symbol XAUUSDT_UMCBL \
+  --granularities 5m,15m,1H,4H \
+  --days 1 \
+  --db-url "$DATABASE_URL"
+```
+
+Backfill is idempotent — safe to run repeatedly. The upsert will not create duplicates.
+
+### Inspecting Stored Candles
+
+```bash
+# Quick count of stored candles by granularity
+uv run python -c "
+import asyncio, os
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+
+async def main():
+    engine = create_async_engine(os.environ['DATABASE_URL'])
+    async with engine.connect() as conn:
+        result = await conn.execute(
+            text('SELECT granularity, COUNT(*), MIN(open_time), MAX(open_time) '
+                 'FROM candles WHERE symbol = :symbol GROUP BY granularity ORDER BY granularity')
+        )
+        for row in result:
+            print(f'  {row[0]}: {row[1]} candles, {row[2]} → {row[3]}')
+    await engine.dispose()
+
+asyncio.run(main())
+"
+```
+
+### Common Failure Modes
+
+| Symptom | Likely Cause | Fix |
+|---|---|---|
+| Collector crashes on startup | Invalid DB URL or missing table | Verify `DATABASE_URL`, ensure tables created via alembic |
+| No candles persist after connect | Granularity mismatch | Check `--granularities` matches Bitget supported values |
+| Frequent reconnects (10+/min) | Network instability or Bitget rate limit | Check network, verify no excessive subscriptions |
+| Duplicate candles in DB | Bug in finalization logic | Run `validate_candles.py`, file issue if duplicate_count > 0 |
+| Gaps in validation report | Collector downtime or crash | Run backfill for missing range |
+| REST comparison mismatches | Clock drift during storage | Check server time sync (`timedatectl status`) |
+
+### Expected Limitations
+
+- **No message ordering guarantees across reconnects**: During a reconnect, candles may arrive out of order. The `LiveCandleCollector` handles this via deduplication — duplicate open_times are only persisted once.
+- **Single-connection WebSocket**: The collector maintains one WebSocket connection. If Bitget drops the connection, reconnect happens with exponential backoff (1–30 seconds).
+- **Public API only**: Only public market data channels are supported. Private authenticated WebSocket channels are not implemented.
+- **No alerting**: The collector does not send alerts on disconnect or data gaps. Use `validate_candles.py` in cron for automated gap detection.
+- **No backfill in validation tools**: `validate_candles.py` and `compare_candles.py` are read-only. Gaps are reported, not fixed.
+
