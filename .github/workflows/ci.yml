@@ -45,21 +45,7 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade uv
       - run: uv sync --frozen
-      # Create test database (uses default 'postgres' DB via env var fallback)
-      - run: |
-          uv run python -c "
-          import asyncio
-          from sqlalchemy import text
-          from sqlalchemy.ext.asyncio import create_async_engine
-
-          async def create():
-              engine = create_async_engine('postgresql+asyncpg://xauusdt:xauusdt@localhost:5432/xauusdt', echo=False)
-              async with engine.connect() as conn:
-                  await conn.execute(text('COMMIT'))
-                  r = await conn.execute(text(\"SELECT 1 FROM pg_database WHERE datname='xauusdt_test'\"))
-                  if not r.scalar():
-                      await conn.execute(text('CREATE DATABASE xauusdt_test'))
-              await engine.dispose()
-          asyncio.run(create())
+      # Create test database if it doesn't exist
+      - run: uv run python scripts/create_test_db.py
         name: Create test database
       - run: uv run pytest
