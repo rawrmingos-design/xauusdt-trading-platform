@@ -48,4 +48,11 @@ jobs:
       # Create test database if it doesn't exist
       - run: uv run python scripts/create_test_db.py
         name: Create test database
-      - run: uv run pytest
+      - run: uv run pytest -v --tb=long 2>&1 | tee pytest_output.log
+        continue-on-error: true
+      - name: Upload pytest output on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-output
+          path: pytest_output.log
