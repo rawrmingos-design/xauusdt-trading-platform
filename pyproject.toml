@@ -25,6 +25,8 @@ dependencies = [
     "structlog>=24.0",
     "python-dotenv>=1.0",
     "tenacity>=9.0",
+    "aiosqlite>=0.22.1",
+    "pytest-asyncio>=1.4.0",
 ]
 
 [dependency-groups]
