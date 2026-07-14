@@ -12,15 +12,15 @@ from __future__ import annotations
 
 import asyncio
 import os
-import sys
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, AsyncEngine, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
-if TYPE_CHECKING:
-    pass  # noqa: ERA001
+# type check guard — empty block is fine for session-scoped fixtures
+if False:
+    pass
 
 
 # ------------------------------------------------------------------
@@ -101,21 +101,22 @@ def test_engine() -> AsyncEngine:  # type: ignore[reportUnknownVariableType]
 @pytest.fixture(scope="session")
 def test_session(test_engine: AsyncEngine) -> AsyncSession:  # type: ignore[reportUnknownVariableType]
     """Create a session-scoped PostgreSQL session."""
-    from xauusdt.storage.database import init_db, create_tables  # noqa: PLC0415
+    from xauusdt.storage.database import create_tables, init_db  # noqa: PLC0415
 
     async def _setup() -> AsyncSession:
         await init_db(TEST_DB_URL)
         await create_tables()
         async with test_engine.begin() as conn:
             await conn.execute(text("DROP TABLE IF EXISTS candle_sticks CASCADE"))
-            await conn.execute(text("CREATE TABLE IF NOT EXISTS candle_sticks (id SERIAL PRIMARY KEY)"))
+            await conn.execute(
+                text("CREATE TABLE IF NOT EXISTS candle_sticks (id SERIAL PRIMARY KEY)")
+            )
             await conn.commit()
         async with test_engine.begin() as conn:
             await conn.execute(text("DELETE FROM candle_sticks"))
             await conn.commit()
         # Create a session from the engine directly
         async with test_engine.connect() as conn:
-            from xauusdt.storage.models import CandleStick  # noqa: PLC0415
             session = AsyncSession(conn, autoflush=False)
             return session
 
