@@ -36,6 +36,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+    env:
+      TEST_DATABASE_URL: postgresql+asyncpg://xauusdt:xauusdt@localhost:5432/xauusdt_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -43,4 +45,21 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade uv
       - run: uv sync --frozen
+      # Create test database (uses default 'postgres' DB via env var fallback)
+      - run: |
+          uv run python -c "
+          import asyncio
+          from sqlalchemy import text
+          from sqlalchemy.ext.asyncio import create_async_engine
+
+          async def create():
+              engine = create_async_engine('postgresql+asyncpg://xauusdt:xauusdt@localhost:5432/xauusdt', echo=False)
+              async with engine.connect() as conn:
+                  await conn.execute(text('COMMIT'))
+                  r = await conn.execute(text(\"SELECT 1 FROM pg_database WHERE datname='xauusdt_test'\"))
+                  if not r.scalar():
+                      await conn.execute(text('CREATE DATABASE xauusdt_test'))
+              await engine.dispose()
+          asyncio.run(create())
+        name: Create test database
       - run: uv run pytest
