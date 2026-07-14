@@ -85,7 +85,7 @@ def pg_engine() -> AsyncEngine:
     """Session-scoped PostgreSQL engine."""
     engine = create_async_engine(TEST_DB_URL, echo=False, pool_pre_ping=True)
     yield engine
-    asyncio.get_event_loop().run_until_complete(engine.dispose())
+    asyncio.run(engine.dispose())
 
 
 @pytest.fixture(scope="session")
@@ -106,4 +106,4 @@ def pg_session(pg_engine: AsyncEngine) -> AsyncSession:
             session = AsyncSession(conn, autoflush=False)
             return session
 
-    return asyncio.get_event_loop().run_until_complete(_setup())
+    return asyncio.run(_setup())
