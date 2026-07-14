@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timezone
-
-import pytest
+from datetime import UTC, datetime
 
 from xauusdt.exchange.websocket_models import (
     WsCandleStickSnapshot,
     WsCandleStickUpdate,
     WsPingMessage,
-    WsPongMessage,
     WsSubscribeMessage,
 )
 
@@ -111,14 +108,14 @@ class TestParseCandleTimestamp:
         from xauusdt.exchange.websocket import parse_candle_to_timestamp_sync  # noqa: PLC0415
 
         dt = parse_candle_to_timestamp_sync("0")
-        assert dt == datetime(1970, 1, 1, tzinfo=timezone.utc)
+        assert dt == datetime(1970, 1, 1, tzinfo=UTC)
 
     def test_parses_known_timestamp(self) -> None:
         from xauusdt.exchange.websocket import parse_candle_to_timestamp_sync  # noqa: PLC0415
 
         # 1718446800000 ms = 2024-06-15 10:20:00 UTC
         dt = parse_candle_to_timestamp_sync("1718446800000")
-        assert dt == datetime(2024, 6, 15, 10, 20, tzinfo=timezone.utc)
+        assert dt == datetime(2024, 6, 15, 10, 20, tzinfo=UTC)
 
     def test_parses_milliseconds(self) -> None:
         from xauusdt.exchange.websocket import parse_candle_to_timestamp_sync  # noqa: PLC0415
