@@ -116,3 +116,47 @@ Result is printed as JSON to stdout:
   "status": "completed_with_gaps"
 }
 ```
+
+## Live WebSocket Candle Collector
+
+Collect real-time candlestick data from Bitget Futures via WebSocket.
+
+### How it works
+
+1. Subscribe to Bitget Futures candlestick channel for XAUUSDT
+2. Receive snapshot (initial state) + update (real-time changes)
+3. Track in-progress candles separately from finalized candles
+4. **Finalize only when a newer interval candle appears** — this is the key safety mechanism
+5. Persist finalized candles through `CandleRepository.upsert_many()` idempotently
+
+### CLI usage
+
+```bash
+# Run live collector (SQLite)
+uv run xauusdt-collect --symbol XAUUSDT_UMCBL \
+  --granularities 5m,15m,1H,4H
+
+# With PostgreSQL
+uv run xauusdt-collect --db-url "postgresql+asyncpg://xauusdt:xauusdt@localhost:5432/xauusdt"
+
+# Single granularity
+uv run xauusdt-collect --granularities 5m --log-level DEBUG
+```
+
+### Arguments
+
+| Argument | Default | Description |
+|---|---|---|
+| `--symbol` | `XAUUSDT_UMCBL` | Futures symbol |
+| `--granularities` | `5m,15m,1H,4H` | Comma-separated intervals |
+| `--db-url` | `sqlite+aiosqlite:///xauusdt.db` | Database URL |
+| `--log-level` | `INFO` | Logging level |
+
+### Supported granularities
+
+`5m`, `15m`, `1H`, `4H`
+
+### Shutdown
+
+Send `SIGINT` (Ctrl+C) or `SIGTERM` for graceful shutdown. The collector will disconnect cleanly from the WebSocket and close the database connection.
+
