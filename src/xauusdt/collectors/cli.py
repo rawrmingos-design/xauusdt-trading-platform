@@ -1,4 +1,4 @@
-"""CLI entry point for historical backfill."""
+"""CLI entry point for historical backfill (Bitget or OKX)."""
 
 from __future__ import annotations
 
@@ -9,8 +9,14 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from xauusdt.collectors import BACKFILL_GRANULARITIES, BackfillResult, HistoricalBackfillService
+from xauusdt.collectors import (
+    BACKFILL_GRANULARITIES,
+    BackfillResult,
+    HistoricalBackfillService,
+)
+from xauusdt.collectors.okx_backfill import OKXBackfillResult, _download_okx_all
 from xauusdt.exchange.client import BitgetPublicClient
+from xauusdt.exchange.okx_client import OKXClient
 from xauusdt.storage.candle_repository import CandleRepository
 from xauusdt.storage.database import close_db, create_tables, init_db
 
@@ -24,14 +30,21 @@ def _parse_datetime(value: str) -> datetime:
         return datetime.fromisoformat(value).replace(tzinfo=UTC)
     except (ValueError, TypeError) as exc:
         raise argparse.ArgumentTypeError(
-            f"Invalid datetime {value!r}. Use ISO-8601 format (e.g. 2025-01-01T00:00:00Z or 2025-01-01T00:00:00+00:00)"
+            f"Invalid datetime {value!r}. Use ISO-8601 format "
+            f"(e.g. 2025-01-01T00:00:00Z or 2025-01-01T00:00:00+00:00)"
         ) from exc
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="xauusdt-backfill",
-        description="Historical backfill for Bitget XAUUSDT candles",
+        description="Historical backfill for XAUUSDT candles (Bitget or OKX)",
+    )
+    parser.add_argument(
+        "--exchange",
+        choices=["bitget", "okx"],
+        default="bitget",
+        help="Exchange to fetch data from (default: bitget)",
     )
     parser.add_argument(
         "--symbol",
@@ -77,22 +90,37 @@ def _build_parser() -> argparse.ArgumentParser:
 
 async def _run_backfill(args: argparse.Namespace) -> None:
     """Execute backfill with initialized DB and client."""
-    # Override symbol in result (but backfill still uses BACKFILL_SYMBOL internally)
     await init_db(args.db_url)
     await create_tables()
 
-    result: BackfillResult | None = None
-    async with BitgetPublicClient() as client:
-        async for session in _get_session(args.db_url):
-            repo = CandleRepository(session)
-            service = HistoricalBackfillService(client, repo)
-            result = await service.run(
-                granularity=args.granularity,
-                start_time=args.start_time,
-                end_time=args.end_time,
-                dry_run=args.dry_run,
-            )
-            break
+    result: BackfillResult | OKXBackfillResult | None = None
+
+    if args.exchange == "bitget":
+        async with BitgetPublicClient() as client:
+            async for session in _get_session(args.db_url):
+                repo = CandleRepository(session)
+                service = HistoricalBackfillService(client, repo)
+                result = await service.run(
+                    granularity=args.granularity,
+                    start_time=args.start_time,
+                    end_time=args.end_time,
+                    dry_run=args.dry_run,
+                )
+                break
+
+    elif args.exchange == "okx":
+        async with OKXClient() as client:
+            async for session in _get_session(args.db_url):
+                repo = CandleRepository(session)
+                result = await _download_okx_all(
+                    client=client,
+                    repository=repo,
+                    granularity=args.granularity,
+                    start_time=args.start_time,
+                    end_time=args.end_time,
+                    dry_run=args.dry_run,
+                )
+                break
 
     await close_db()
 
