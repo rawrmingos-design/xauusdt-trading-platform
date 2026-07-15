@@ -5,7 +5,7 @@ import sys
 
 sys.path.insert(0, "/home/devistopup13/xauusdt-platform/src")
 
-from xauusdt.storage.database import init_db, create_tables
+from xauusdt.storage.database import create_tables, init_db
 
 
 async def main():

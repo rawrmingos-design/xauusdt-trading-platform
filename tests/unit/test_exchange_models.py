@@ -21,7 +21,7 @@ class TestContractInfo:
 
     def test_full(self) -> None:
         info = ContractInfo(
-            symbol="XAUUSDT_UMCBL",
+            symbol="XAU-USDT-SWAP",
             productType="UMCBL",
             baseCoin="XAU",
             quoteCoin="USDT",
@@ -42,7 +42,7 @@ class TestContractInfo:
 class TestToContract:
     def test_conversion(self) -> None:
         info = ContractInfo(
-            symbol="XAUUSDT_UMCBL",
+            symbol="XAU-USDT-SWAP",
             productType="UMCBL",
             baseCoin="XAU",
             quoteCoin="USDT",
@@ -52,7 +52,7 @@ class TestToContract:
             volumePlace="3",
         )
         contract = to_contract(info)
-        assert contract.symbol == "XAUUSDT_UMCBL"
+        assert contract.symbol == "XAU-USDT-SWAP"
         assert contract.base_coin == "XAU"
         assert contract.contract_size == 0.1
         assert contract.min_trade_amount == 0.001

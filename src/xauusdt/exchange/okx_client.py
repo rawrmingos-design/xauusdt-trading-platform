@@ -36,9 +36,7 @@ class OKXClient:
     """
 
     BASE_URL = "https://www.okx.com"
-    SYMBOL_MAP: dict[str, str] = {
-        "XAUUSDT_UMCBL": "XAU-USDT-SWAP",
-    }
+    SYMBOL_MAP: dict[str, str] = {}
     GRANULARITY_MAP: dict[str, str] = {
         "1m": "1m",
         "5m": "5m",
@@ -118,7 +116,7 @@ class OKXClient:
 
     async def fetch_candles(
         self,
-        symbol: str = "XAUUSDT_UMCBL",
+        symbol: str = "XAU-USDT-SWAP",
         granularity: str = "15m",
         start_time: datetime | None = None,
         end_time: datetime | None = None,
@@ -127,7 +125,7 @@ class OKXClient:
         """Fetch historical candles.
 
         Args:
-            symbol: Normalized symbol (XAUUSDT_UMCBL).
+            symbol: Normalized symbol (XAU-USDT-SWAP).
             granularity: Candle size (1m, 5m, 15m, 30m, 1H, 4H, 1D).
             start_time: If set, use as 'after' param (oldest allowed ts).
             end_time: Ignored — OKX uses 'after' for pagination only.
@@ -176,7 +174,7 @@ class OKXClient:
 
     async def fetch_candles_paginated(
         self,
-        symbol: str = "XAUUSDT_UMCBL",
+        symbol: str = "XAU-USDT-SWAP",
         granularity: str = "15m",
         start_time: datetime | None = None,
         end_time: datetime | None = None,

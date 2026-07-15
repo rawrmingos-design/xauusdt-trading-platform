@@ -15,7 +15,7 @@ from xauusdt.exchange.client import BitgetPublicClient
 from xauusdt.exchange.models import Candle
 from xauusdt.storage.candle_repository import CandleRepository
 
-BACKFILL_SYMBOL = "XAUUSDT_UMCBL"
+BACKFILL_SYMBOL = "XAU-USDT-SWAP"
 BACKFILL_GRANULARITIES = {"5m", "15m", "1H", "4H"}
 GRANULARITY_SECONDS = {
     "1m": 60,

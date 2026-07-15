@@ -18,7 +18,7 @@ def anyio_backend():
 
 
 def _make_candle(
-    symbol: str = "XAUUSDT_UMCBL",
+    symbol: str = "XAU-USDT-SWAP",
     granularity: str = "5m",
     open_time: datetime | None = None,
     open_: float = 3500.0,
@@ -74,9 +74,9 @@ class TestCandleRepository:
         await repo.insert(candle)
         await session.commit()
 
-        results = await repo.query_by_range("XAUUSDT_UMCBL", "5m")
+        results = await repo.query_by_range("XAU-USDT-SWAP", "5m")
         assert len(results) == 1
-        assert results[0].symbol == "XAUUSDT_UMCBL"
+        assert results[0].symbol == "XAU-USDT-SWAP"
         assert _strip_tz(results[0].open_time) == datetime(2026, 7, 14, 12, 0)
 
     async def test_upsert_many_idempotent(self, session: AsyncSession) -> None:
@@ -93,7 +93,7 @@ class TestCandleRepository:
         await session.commit()
         assert count2 == 0  # all skipped as duplicates
 
-        total = await repo.count_in_range("XAUUSDT_UMCBL", "5m")
+        total = await repo.count_in_range("XAU-USDT-SWAP", "5m")
         assert total == 2
 
     async def test_query_by_range_sorted(self, session: AsyncSession) -> None:
@@ -104,7 +104,7 @@ class TestCandleRepository:
         await repo.insert(_make_candle(open_time=early))
         await session.commit()
 
-        results = await repo.query_by_range("XAUUSDT_UMCBL", "5m")
+        results = await repo.query_by_range("XAU-USDT-SWAP", "5m")
         assert [_strip_tz(c.open_time) for c in results] == [
             datetime(2026, 7, 14, 11, 55),
             datetime(2026, 7, 14, 12, 0),
@@ -118,7 +118,7 @@ class TestCandleRepository:
         await repo.insert(_make_candle(open_time=t2))
         await session.commit()
 
-        latest = await repo.latest_open_time("XAUUSDT_UMCBL", "5m")
+        latest = await repo.latest_open_time("XAU-USDT-SWAP", "5m")
         assert _safe_strip(latest) == datetime(2026, 7, 14, 12, 0)
 
     async def test_count_in_range(self, session: AsyncSession) -> None:
@@ -131,5 +131,5 @@ class TestCandleRepository:
         await repo.insert(_make_candle(open_time=end))
         await session.commit()
 
-        count = await repo.count_in_range("XAUUSDT_UMCBL", "5m", start_time=start, end_time=end)
+        count = await repo.count_in_range("XAU-USDT-SWAP", "5m", start_time=start, end_time=end)
         assert count == 3

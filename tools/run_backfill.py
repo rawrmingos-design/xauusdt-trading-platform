@@ -1,15 +1,15 @@
 """Run full OKX backfill to PostgreSQL."""
 
-import sys
 import asyncio
+import sys
 from datetime import UTC, datetime
 
 sys.path.insert(0, "/home/devistopup13/xauusdt-platform/src")
 
-from xauusdt.storage.database import init_db, get_session
+from xauusdt.collectors.okx_backfill import _download_okx_all
 from xauusdt.exchange.okx_client import OKXClient
 from xauusdt.storage.candle_repository import CandleRepository
-from xauusdt.collectors.okx_backfill import _download_okx_all
+from xauusdt.storage.database import get_session, init_db
 
 
 async def main():
@@ -24,9 +24,7 @@ async def main():
     async with OKXClient() as client:
         async for session in get_session():
             repo = CandleRepository(session)
-            result = await _download_okx_all(
-                client, repo, "15m", start, end, dry_run=False
-            )
+            result = await _download_okx_all(client, repo, "15m", start, end, dry_run=False)
             print(f"Downloaded: {result.downloaded_count}")
             print(f"Stored: {result.stored_count}")
             print(f"Gaps: {result.gap_count}")

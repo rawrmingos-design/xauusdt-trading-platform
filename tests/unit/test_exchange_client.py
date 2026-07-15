@@ -19,7 +19,7 @@ CONTRACTS_RESPONSE = {
     "msg": "success",
     "data": [
         {
-            "symbol": "XAUUSDT_UMCBL",
+            "symbol": "XAU-USDT-SWAP",
             "productType": "UMCBL",
             "baseCoin": "XAU",
             "quoteCoin": "USDT",
@@ -138,7 +138,7 @@ class TestGetContracts:
         contracts = await client.get_contracts()
 
         assert len(contracts) == 2
-        assert contracts[0].symbol == "XAUUSDT_UMCBL"
+        assert contracts[0].symbol == "XAU-USDT-SWAP"
         assert contracts[0].contract_size == 0.1
         assert contracts[1].symbol == "BTCUSDT_UMCBL"
 
@@ -169,9 +169,9 @@ class TestGetContract:
         mock.request.return_value = httpx.Response(200, json=CONTRACTS_RESPONSE)
         client._client = mock
 
-        contract = await client.get_contract("XAUUSDT_UMCBL")
+        contract = await client.get_contract("XAU-USDT-SWAP")
         assert contract is not None
-        assert contract.symbol == "XAUUSDT_UMCBL"
+        assert contract.symbol == "XAU-USDT-SWAP"
         assert contract.contract_size == 0.1
 
     async def test_get_contract_not_found(self, client: BitgetPublicClient) -> None:

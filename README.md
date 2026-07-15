@@ -90,7 +90,7 @@ PYTHONPATH=src python -m xauusdt.collectors.cli \
 | `--granularity` | Yes | `5m`, `15m`, `1H`, or `4H` |
 | `--start-time` | Yes | Inclusive start time (ISO-8601) |
 | `--end-time` | Yes | Exclusive end time (ISO-8601) |
-| `--symbol` | No | Futures symbol (default: `XAUUSDT_UMCBL`) |
+| `--symbol` | No | Futures symbol (default: `XAU-USDT-SWAP`) |
 | `--dry-run` | No | Download + validate only |
 | `--db-url` | No | Database URL (default: SQLite in `xauusdt.db`) |
 | `--output` | No | Write result JSON to file |
@@ -101,7 +101,7 @@ Result is printed as JSON to stdout:
 
 ```json
 {
-  "symbol": "XAUUSDT_UMCBL",
+  "symbol": "XAU-USDT-SWAP",
   "granularity": "15m",
   "start_time": "2025-01-01T00:00:00+00:00",
   "end_time": "2025-01-02T00:00:00+00:00",
@@ -133,7 +133,7 @@ Collect real-time candlestick data from Bitget Futures via WebSocket.
 
 ```bash
 # Run live collector (SQLite)
-uv run xauusdt-collect --symbol XAUUSDT_UMCBL \
+uv run xauusdt-collect --symbol XAU-USDT-SWAP \
   --granularities 5m,15m,1H,4H
 
 # With PostgreSQL
@@ -147,7 +147,7 @@ uv run xauusdt-collect --granularities 5m --log-level DEBUG
 
 | Argument | Default | Description |
 |---|---|---|
-| `--symbol` | `XAUUSDT_UMCBL` | Futures symbol |
+| `--symbol` | `XAU-USDT-SWAP` | Futures symbol |
 | `--granularities` | `5m,15m,1H,4H` | Comma-separated intervals |
 | `--db-url` | `sqlite+aiosqlite:///xauusdt.db` | Database URL |
 | `--log-level` | `INFO` | Logging level |
@@ -171,7 +171,7 @@ Run the live WebSocket collector on the VPS for a 6–24 hour validation period:
 ```bash
 # Start collector in background, logging to file
 nohup uv run xauusdt-collect \
-  --symbol XAUUSDT_UMCBL \
+  --symbol XAU-USDT-SWAP \
   --granularities 5m,15m,1H,4H \
   --db-url "$DATABASE_URL" \
   --log-level INFO \
@@ -196,7 +196,7 @@ After running for 6 hours, validate continuity:
 ```bash
 # Validate last 6 hours of 15m candles
 uv run python tools/validate_candles.py \
-  --symbol XAUUSDT_UMCBL \
+  --symbol XAU-USDT-SWAP \
   --granularity 15m \
   --start-time 2026-07-14T06:00:00Z \
   --end-time 2026-07-14T12:00:00Z \
@@ -206,7 +206,7 @@ uv run python tools/validate_candles.py \
 # Validate all granularities
 for GRAN in 5m 15m 1H 4H; do
   uv run python tools/validate_candles.py \
-    --symbol XAUUSDT_UMCBL \
+    --symbol XAU-USDT-SWAP \
     --granularity "$GRAN" \
     --start-time 2026-07-14T06:00:00Z \
     --end-time 2026-07-14T12:00:00Z \
@@ -224,7 +224,7 @@ Verify stored candles match REST historical data:
 
 ```bash
 uv run python tools/compare_candles.py \
-  --symbol XAUUSDT_UMCBL \
+  --symbol XAU-USDT-SWAP \
   --granularity 15m \
   --start-time 2026-07-14T00:00:00Z \
   --end-time 2026-07-14T12:00:00Z \
@@ -244,7 +244,7 @@ When validation detects gaps after collector downtime:
 ```bash
 # Run backfill for the gap range
 uv run xauusdt-backfill \
-  --symbol XAUUSDT_UMCBL \
+  --symbol XAU-USDT-SWAP \
   --granularities 5m,15m,1H,4H \
   --days 1 \
   --dry-run          # First check what will change
@@ -252,7 +252,7 @@ uv run xauusdt-backfill \
 
 # Apply (remove --dry-run to persist)
 uv run xauusdt-backfill \
-  --symbol XAUUSDT_UMCBL \
+  --symbol XAU-USDT-SWAP \
   --granularities 5m,15m,1H,4H \
   --days 1 \
   --db-url "$DATABASE_URL"

@@ -20,7 +20,7 @@ from xauusdt.exchange.okx_client import OKXClient
 from xauusdt.storage.candle_repository import CandleRepository
 from xauusdt.storage.database import close_db, create_tables, init_db
 
-DEFAULT_SYMBOL = "XAUUSDT_UMCBL"
+DEFAULT_SYMBOL = "XAU-USDT-SWAP"
 DB_URL = "sqlite+aiosqlite:///xauusdt.db"
 
 
@@ -49,7 +49,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--symbol",
         default=DEFAULT_SYMBOL,
-        help="Futures symbol (default: XAUUSDT_UMCBL)",
+        help="Futures symbol (default: XAU-USDT-SWAP)",
     )
     parser.add_argument(
         "--granularity",

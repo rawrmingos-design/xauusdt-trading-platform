@@ -15,7 +15,7 @@ from xauusdt.exchange.models import Candle
 from xauusdt.exchange.okx_client import OKXClient
 from xauusdt.storage.candle_repository import CandleRepository
 
-OKX_BACKFILL_SYMBOL = "XAUUSDT_UMCBL"
+OKX_BACKFILL_SYMBOL = "XAU-USDT-SWAP"
 OKX_BACKFILL_GRANULARITIES = {"5m", "15m", "1H", "4H"}
 OKX_MAX_PAGE_CANDLES = 100
 

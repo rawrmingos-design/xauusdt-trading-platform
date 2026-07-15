@@ -174,7 +174,7 @@ class BitgetPublicClient:
         """Retrieve historical OHLCV candles for a futures symbol.
 
         Args:
-            symbol: Instrument symbol, e.g. ``XAUUSDT_UMCBL``.
+            symbol: Instrument symbol, e.g. ``XAU-USDT-SWAP``.
             granularity: Candle size — ``5m``, ``15m``, ``1H``, ``4H``, etc.
             limit: Max candles per request (1-200). Default 200.
             start_time: Optional UTC start bound.

@@ -56,7 +56,7 @@ class LiveCandleCollector:
         self,
         client: BitgetWebSocketClient,
         repository: CandleRepository,
-        symbol: str = "XAUUSDT_UMCBL",
+        symbol: str = "XAU-USDT-SWAP",
         granularities: set[str] | None = None,
     ) -> None:
         self._client = client
@@ -243,7 +243,7 @@ class LiveCandleCollector:
             open_time = parse_candle_to_timestamp_sync(ts_str)
 
             return Candle(
-                symbol="XAUUSDT_UMCBL",
+                symbol="XAU-USDT-SWAP",
                 granularity=granularity,
                 open_time=open_time,
                 open=float(raw_data.get("ow", 0)),

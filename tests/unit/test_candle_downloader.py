@@ -12,7 +12,7 @@ FIXED_NOW = datetime(2026, 7, 14, 12, 0, 0, tzinfo=UTC)
 
 
 def _make_candle(
-    symbol: str = "XAUUSDT_UMCBL",
+    symbol: str = "XAU-USDT-SWAP",
     granularity: str = "5m",
     open_time: datetime | None = None,
     open_: float = 3500.0,
@@ -60,8 +60,8 @@ class TestParseCandle:
             "100.0",
             "350000.0",
         ]
-        candle = BitgetPublicClient._parse_candle("XAUUSDT_UMCBL", "5m", row)
-        assert candle.symbol == "XAUUSDT_UMCBL"
+        candle = BitgetPublicClient._parse_candle("XAU-USDT-SWAP", "5m", row)
+        assert candle.symbol == "XAU-USDT-SWAP"
         assert candle.granularity == "5m"
         assert candle.open_time == datetime(2025, 2, 19, 21, 20, tzinfo=UTC)
         assert candle.open == 3500.0
@@ -73,12 +73,12 @@ class TestParseCandle:
 
     def test_parse_without_quote_volume(self) -> None:
         row = ["1740000000000", "3500.0", "3510.0", "3490.0", "3505.0", "100.0"]
-        candle = BitgetPublicClient._parse_candle("XAUUSDT_UMCBL", "5m", row)
+        candle = BitgetPublicClient._parse_candle("XAU-USDT-SWAP", "5m", row)
         assert candle.quote_volume == 0.0
 
     def test_open_time_is_utc(self) -> None:
         row = ["1740000000000", "3500.0", "3510.0", "3490.0", "3505.0", "100.0"]
-        candle = BitgetPublicClient._parse_candle("XAUUSDT_UMCBL", "5m", row)
+        candle = BitgetPublicClient._parse_candle("XAU-USDT-SWAP", "5m", row)
         assert candle.open_time.tzinfo is UTC
 
 
@@ -94,7 +94,7 @@ class TestGetHistoryCandles:
                 import httpx
 
                 m.return_value = httpx.Response(200, json=resp)
-                candles = await c.get_history_candles("XAUUSDT_UMCBL", "5m", limit=200)
+                candles = await c.get_history_candles("XAU-USDT-SWAP", "5m", limit=200)
                 assert len(candles) == 2
                 assert candles[0].open == 3500.0
                 assert candles[1].open == 3505.0
@@ -106,13 +106,13 @@ class TestGetHistoryCandles:
                 import httpx
 
                 m.return_value = httpx.Response(200, json=resp)
-                candles = await c.get_history_candles("XAUUSDT_UMCBL", "5m")
+                candles = await c.get_history_candles("XAU-USDT-SWAP", "5m")
                 assert candles == []
 
     async def test_invalid_granularity(self) -> None:
         async with BitgetPublicClient() as c:
             with pytest.raises(ValueError, match="Unsupported granularity"):
-                await c.get_history_candles("XAUUSDT_UMCBL", "2m")
+                await c.get_history_candles("XAU-USDT-SWAP", "2m")
 
     async def test_limit_clamped_to_200(self) -> None:
         rows = [["1740000000000", "3500.0", "3510.0", "3490.0", "3505.0", "100.0", "350000.0"]]
@@ -122,7 +122,7 @@ class TestGetHistoryCandles:
                 import httpx
 
                 m.return_value = httpx.Response(200, json=resp)
-                await c.get_history_candles("XAUUSDT_UMCBL", "5m", limit=999)
+                await c.get_history_candles("XAU-USDT-SWAP", "5m", limit=999)
                 m.assert_called_once()
                 _, kwargs = m.call_args
                 assert kwargs["params"]["limit"] == 200
@@ -135,7 +135,7 @@ class TestGetHistoryCandles:
 
                 m.return_value = httpx.Response(200, json=resp)
                 with pytest.raises(Exception, match="API error code=40001"):
-                    await c.get_history_candles("XAUUSDT_UMCBL", "5m")
+                    await c.get_history_candles("XAU-USDT-SWAP", "5m")
 
 
 class TestCandleSorting:

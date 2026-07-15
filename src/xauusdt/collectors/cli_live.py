@@ -17,7 +17,7 @@ from xauusdt.storage.database import create_tables, init_db
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SYMBOL = "XAUUSDT_UMCBL"
+DEFAULT_SYMBOL = "XAU-USDT-SWAP"
 DB_URL = "sqlite+aiosqlite:///xauusdt.db"
 
 
@@ -29,7 +29,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--symbol",
         default=DEFAULT_SYMBOL,
-        help="Futures symbol (default: XAUUSDT_UMCBL)",
+        help="Futures symbol (default: XAU-USDT-SWAP)",
     )
     parser.add_argument(
         "--granularities",

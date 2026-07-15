@@ -32,18 +32,18 @@
 | Context | Value |
 |---|---|
 | OKX External | `XAU-USDT-SWAP` |
-| Internal Symbol | `XAUUSDT_UMCBL` |
-| Mapping | `OKXClient.SYMBOL_MAP["XAUUSDT_UMCBL"] = "XAU-USDT-SWAP"` |
+| Internal Symbol | `XAU-USDT-SWAP` |
+| Mapping | `OKXClient.SYMBOL_MAP["XAU-USDT-SWAP"] = "XAU-USDT-SWAP"` |
 
-**Finding**: `XAUUSDT_UMCBL` uses the `_UMCBL` suffix, which is Bitget's naming convention for USDT-margined inverse perpetuals. This was inherited from an earlier Bitget integration and has not been cleaned up.
+**Finding**: `XAU-USDT-SWAP` uses the `_UMCBL` suffix, which is Bitget's naming convention for USDT-margined inverse perpetuals. This was inherited from an earlier Bitget integration and has not been cleaned up.
 
 **Impact**: 
-- The report says "XAU-USDT-SWAP" in some places and "XAUUSDT_UMCBL" in others
+- The report says "XAU-USDT-SWAP" in some places and "XAU-USDT-SWAP" in others
 - Creates confusion about what the canonical internal symbol should be
-- The `run_baseline_backtest.py` printed "XAU-USDT-SWAP" in the report while querying the DB with "XAUUSDT_UMCBL"
+- The `run_baseline_backtest.py` printed "XAU-USDT-SWAP" in the report while querying the DB with "XAU-USDT-SWAP"
 
 **Recommendation**: Create a canonical symbol mapping module that defines:
-- External → Internal: `XAU-USDT-SWAP` → `XAU-USDT-SWAP` (OKX), `XAUUSDT_UMCBL` → `XAU-USDT-SWAP` (Bitget legacy)
+- External → Internal: `XAU-USDT-SWAP` → `XAU-USDT-SWAP` (OKX), `XAU-USDT-SWAP` → `XAU-USDT-SWAP` (Bitget legacy)
 - Use the canonical name internally, map on exchange boundaries only
 
 ---
@@ -206,7 +206,7 @@ If instrumentation is needed:
 
 ### Priority 4: Symbol cleanup
 - Create canonical symbol mapping module
-- Replace `XAUUSDT_UMCBL` with `XAU-USDT-SWAP` throughout
+- Replace `XAU-USDT-SWAP` with `XAU-USDT-SWAP` throughout
 
 ---
 

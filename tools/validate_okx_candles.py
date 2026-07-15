@@ -51,7 +51,7 @@ async def validate(
     async for session in _get_session(db_url):
         repo = CandleRepository(session)
         db_candles = await repo.query_by_range(
-            symbol="XAUUSDT_UMCBL",
+            symbol="XAU-USDT-SWAP",
             granularity=granularity,
             start_time=start_time,
             end_time=end_time,
@@ -63,7 +63,7 @@ async def validate(
     if okx_api:
         async with OKXClient() as client:
             okx_candles = await client.fetch_candles(
-                symbol="XAUUSDT_UMCBL",
+                symbol="XAU-USDT-SWAP",
                 granularity=granularity,
                 start_time=start_time,
                 limit=100,

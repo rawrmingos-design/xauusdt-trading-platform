@@ -1,7 +1,7 @@
 """Run baseline confluence backtest on OKX XAU-USDT-SWAP."""
 
-import sys
 import asyncio
+import sys
 
 sys.path.insert(0, "/home/devistopup13/xauusdt-platform/src")
 
@@ -11,8 +11,8 @@ from pathlib import Path
 from xauusdt.backtest.confluence_engine import ConfluenceBacktestEngine
 from xauusdt.backtest.models import BacktestConfig
 from xauusdt.exchange.models import Candle
-from xauusdt.storage.database import init_db
 from xauusdt.storage.candle_repository import CandleRepository
+from xauusdt.storage.database import init_db
 from xauusdt.strategy.confluence import ConfluenceConfig, ConfluenceStrategy
 
 
@@ -29,7 +29,7 @@ async def main():
 
         start = datetime(2026, 7, 8, tzinfo=UTC)
         end = datetime(2026, 7, 15, tzinfo=UTC)
-        results = await repo.query_by_range("XAUUSDT_UMCBL", "15m", start, end)
+        results = await repo.query_by_range("XAU-USDT-SWAP", "15m", start, end)
         candle_orms = list(results)
         await session.close()
         break
@@ -83,7 +83,7 @@ async def main():
     result = engine.run()
 
     m = result.metrics
-    print(f"\n=== BASELINE REPORT ===")
+    print("\n=== BASELINE REPORT ===")
     print(f"Candles: {len(candles)}")
     print(f"Trades: {m.total_trades}")
     print(f"Win trades: {m.win_trades}")
@@ -94,14 +94,15 @@ async def main():
     print(f"Profit factor: {m.profit_factor:.2f}")
     print(f"Max drawdown: {m.max_drawdown:.2f} ({m.max_drawdown_pct * 100:.1f}%)")
     print(f"Expectancy: {m.expectancy:.2f}")
-    
+
     # Save report files
     report_dir = Path("docs/reports")
     report_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-    
+
     # JSON
     import json
+
     report_data = {
         "data": {
             "symbol": "XAU-USDT-SWAP",
@@ -127,20 +128,20 @@ async def main():
             "expectancy": m.expectancy,
         },
     }
-    
+
     json_file = report_dir / f"baseline_{timestamp}.json"
     with open(json_file, "w") as f:
         json.dump(report_data, f, indent=2)
     print(f"\nJSON report: {json_file}")
-    
+
     # Markdown
     md_file = report_dir / f"baseline_{timestamp}.md"
     with open(md_file, "w") as f:
-        f.write(f"# Baseline Confluence Backtest Report\n\n")
+        f.write("# Baseline Confluence Backtest Report\n\n")
         f.write(f"**Date**: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}\n\n")
         f.write("## Data\n\n")
-        f.write(f"- **Symbol**: XAU-USDT-SWAP\n")
-        f.write(f"- **Granularity**: 15m\n")
+        f.write("- **Symbol**: XAU-USDT-SWAP\n")
+        f.write("- **Granularity**: 15m\n")
         f.write(f"- **Range**: {start_dt.date()} to {end_dt.date()}\n")
         f.write(f"- **Candle count**: {len(candles)}\n\n")
         f.write("## Configuration\n\n")
@@ -154,7 +155,7 @@ async def main():
         f.write(f"- ATR SL multiplier: {strategy_config.sl_atr_multiplier}\n")
         f.write(f"- Risk/Reward: {strategy_config.risk_reward_ratio}\n\n")
         f.write("## Results\n\n")
-        f.write(f"| Metric | Value |\n|---|---|\n")
+        f.write("| Metric | Value |\n|---|---|\n")
         f.write(f"| Net PnL | {m.net_pnl:.2f} |\n")
         f.write(f"| Final Balance | {m.final_balance:.2f} |\n")
         f.write(f"| Total Trades | {m.total_trades} |\n")
@@ -163,7 +164,9 @@ async def main():
         f.write(f"| Max Drawdown | {m.max_drawdown:.2f} ({m.max_drawdown_pct * 100:.1f}%) |\n")
         f.write(f"| Expectancy | {m.expectancy:.2f} |\n\n")
         f.write("## Known Limitations\n\n")
-        f.write("- 7-day data range\n- 15m granularity only\n- Confluence v1 (not optimized)\n- No parameter optimization\n")
+        f.write(
+            "- 7-day data range\n- 15m granularity only\n- Confluence v1 (not optimized)\n- No parameter optimization\n"
+        )
     print(f"Markdown report: {md_file}")
 
 
