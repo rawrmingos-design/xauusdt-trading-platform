@@ -31,6 +31,8 @@ class CandleRepository:
         Uses ON CONFLICT DO UPDATE for PostgreSQL.
         Falls back to serial insert for SQLite without upsert support.
         Returns number of rows affected.
+
+        Chunks PostgreSQL inserts to avoid 32767 parameter limit.
         """
         if not candles:
             return 0
@@ -41,7 +43,25 @@ class CandleRepository:
         return await self._upsert_postgres(candles)
 
     async def _upsert_postgres(self, candles: list[Any]) -> int:
-        """PostgreSQL upsert using ON CONFLICT ... DO UPDATE."""
+        """PostgreSQL upsert using ON CONFLICT ... DO UPDATE.
+
+        Chunks the list to avoid PostgreSQL 32767 parameter limit.
+        """
+        if not candles:
+            return 0
+
+        # PostgreSQL max params is 32767. Each row has ~11 columns, so ~3000 rows safe.
+        chunk_size = 1000
+        total_stored = 0
+
+        for i in range(0, len(candles), chunk_size):
+            chunk = candles[i : i + chunk_size]
+            total_stored += await self._do_upsert_postgres_chunk(chunk)
+
+        return total_stored
+
+    async def _do_upsert_postgres_chunk(self, candles: list[Any]) -> int:
+        """PostgreSQL upsert for a single chunk of candles."""
         from sqlalchemy.dialects.postgresql import insert
 
         stmt = insert(CandleOrm).values(

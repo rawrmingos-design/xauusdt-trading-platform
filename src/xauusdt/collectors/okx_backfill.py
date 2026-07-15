@@ -7,6 +7,7 @@ with idempotent upsert. Supports dry-run mode.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -131,6 +132,9 @@ async def _download_okx_all(
         # Safety
         if len(all_candles) >= expected_count * 2:
             break
+
+        # Respect OKX rate limits (20 req / 2s for public endpoints)
+        await asyncio.sleep(0.15)
 
     # Sort ascending (oldest first)
     all_candles.sort(key=lambda c: c.open_time)

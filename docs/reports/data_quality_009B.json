@@ -1,0 +1,86 @@
+{
+  "task": "PROJECT-DATA-009B",
+  "generated_at": "2026-07-15T18:34:39.961251+00:00",
+  "canonical_symbol": "XAU-USDT-SWAP",
+  "backfill_commands": [
+    "uv run python tools/run_backfill.py --symbol XAU-USDT-SWAP --granularity 15m --days 90",
+    "uv run python tools/run_backfill.py --symbol XAU-USDT-SWAP --granularity 1H --days 90"
+  ],
+  "15m_stats": {
+    "total_count": 8640,
+    "earliest_time": "2026-04-16T00:00:00+00:00",
+    "latest_time": "2026-07-14T23:45:00+00:00",
+    "granularities": [
+      "15m",
+      "1H"
+    ],
+    "start_time": "2026-04-16T00:00:00+00:00",
+    "end_time": "2026-07-15T00:00:00+00:00",
+    "continuity": {
+      "valid": true,
+      "expected_count": 8640,
+      "actual_count": 8640,
+      "coverage_pct": 100.0,
+      "gaps": 0,
+      "duplicate_count": 0,
+      "sample_gaps": []
+    }
+  },
+  "1H_stats": {
+    "total_count": 2160,
+    "earliest_time": "2026-04-16T00:00:00+00:00",
+    "latest_time": "2026-07-14T23:00:00+00:00",
+    "granularities": [
+      "15m",
+      "1H"
+    ],
+    "start_time": "2026-04-16T00:00:00+00:00",
+    "end_time": "2026-07-15T00:00:00+00:00",
+    "continuity": {
+      "valid": true,
+      "expected_count": 2160,
+      "actual_count": 2160,
+      "coverage_pct": 100.0,
+      "gaps": 0,
+      "duplicate_count": 0,
+      "sample_gaps": []
+    }
+  },
+  "comparison_results": [
+    {
+      "okx_candles_fetched": 100,
+      "db_candles_found": 97,
+      "total_compared": 97,
+      "mismatches": 0,
+      "mismatch_details": [],
+      "status": "pass"
+    },
+    {
+      "okx_candles_fetched": 100,
+      "db_candles_found": 97,
+      "total_compared": 97,
+      "mismatches": 0,
+      "mismatch_details": [],
+      "status": "pass"
+    },
+    {
+      "okx_candles_fetched": 100,
+      "db_candles_found": 97,
+      "total_compared": 97,
+      "mismatches": 0,
+      "mismatch_details": [],
+      "status": "pass"
+    }
+  ],
+  "known_limitations": [
+    "OKX public API limited to 100 candles per request.",
+    "Public API may not have full history before XAU-USDT-SWAP was listed on OKX.",
+    "No live candle validation \u2014 only historical REST comparison.",
+    "Price comparison tolerance is $0.01."
+  ],
+  "recommended_next_steps": [
+    "PROJECT-BACKTEST-004: Rerun baseline backtest with 90-day data and EMA 50/200 config.",
+    "Add 1D granularity if needed for multi-timeframe analysis.",
+    "Implement automated candle freshness monitoring."
+  ]
+}

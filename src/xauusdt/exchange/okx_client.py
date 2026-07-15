@@ -42,9 +42,9 @@ class OKXClient:
         "5m": "5m",
         "15m": "15m",
         "30m": "30m",
-        "1H": "60m",
-        "2H": "120m",
-        "4H": "240m",
+        "1H": "1H",
+        "2H": "2H",
+        "4H": "4H",
         "1D": "1D",
         "1W": "1W",
     }
@@ -149,7 +149,7 @@ class OKXClient:
         if start_time:
             params["after"] = str(int(start_time.timestamp() * 1000))
 
-        data = await self._request("/api/v5/market/candles", params)
+        data = await self._request("/api/v5/market/history-candles", params)
         raw_candles = data["data"]
 
         candles = []
@@ -215,5 +215,9 @@ class OKXClient:
 
 
 def _is_retryable(exception: BaseException) -> bool:
-    """Retry on transient network errors."""
+    """Retry on transient network errors or rate limits."""
+    from xauusdt.exchange.exceptions import BitgetRequestError
+
+    if isinstance(exception, BitgetRequestError) and "Rate limited" in str(exception):
+        return True
     return isinstance(exception, (httpx.TimeoutException, httpx.NetworkError))
