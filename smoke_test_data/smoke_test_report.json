@@ -1,0 +1,44 @@
+{
+  "task_id": "PROJECT-DATA-008-OKX",
+  "title": "OKX Live Collector Smoke Test",
+  "status": "completed",
+  "timestamps": {
+    "start_time": "2026-07-15T07:11:42.724990+00:00",
+    "end_time": "2026-07-15T07:12:42.820142+00:00",
+    "duration_seconds": 60.1
+  },
+  "config": {
+    "exchange": "okx",
+    "symbol": "XAU-USDT-SWAP",
+    "granularity": "5m",
+    "db_url": "sqlite+aiosqlite:///smoke_test.db"
+  },
+  "collection_summary": {
+    "stored_candle_count": 5,
+    "expected_candle_count": 0,
+    "coverage_ratio": 0.0
+  },
+  "validation": {
+    "continuity": {
+      "expected_candles": 5,
+      "stored_candles": 5,
+      "gaps_found": 0,
+      "continuity_ratio": 1.0,
+      "status": "pass"
+    },
+    "rest_vs_db": {
+      "matched": 5,
+      "mismatched": 0,
+      "rest_only": 95,
+      "db_only": 0,
+      "total_compared": 5,
+      "quality_score": 1.0,
+      "status": "pass"
+    },
+    "quality_score": 1.0
+  },
+  "errors": [],
+  "reconnect_count": 0,
+  "quality_score": 1.0,
+  "overall_status": "pass"
+}
