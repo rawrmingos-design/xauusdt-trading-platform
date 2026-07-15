@@ -22,7 +22,7 @@ class TestParseArgs:
         args = parse_args(
             [
                 "--symbol",
-                "XAUUSDT_UMCBL",
+                "XAU-USDT-SWAP",
                 "--granularity",
                 "15m",
                 "--start-time",
@@ -33,7 +33,7 @@ class TestParseArgs:
                 "sqlite+aiosqlite:///test.db",
             ]
         )
-        assert args.symbol == "XAUUSDT_UMCBL"
+        assert args.symbol == "XAU-USDT-SWAP"
         assert args.granularity == "15m"
         assert args.output == "text"
 

@@ -136,7 +136,7 @@ class TestBackfillResult:
 
     def test_to_dict_success(self) -> None:
         result = BackfillResult(
-            symbol="XAUUSDT_UMCBL",
+            symbol="XAU-USDT-SWAP",
             granularity="15m",
             start_time=datetime(2025, 1, 1, 0, 0, tzinfo=UTC),
             end_time=datetime(2025, 1, 1, 1, 0, tzinfo=UTC),
@@ -147,7 +147,7 @@ class TestBackfillResult:
             status="success",
         )
         d = result.to_dict()
-        assert d["symbol"] == "XAUUSDT_UMCBL"
+        assert d["symbol"] == "XAU-USDT-SWAP"
         assert d["status"] == "success"
         assert d["downloaded_count"] == 96
         assert "gaps" not in d
@@ -155,7 +155,7 @@ class TestBackfillResult:
     def test_to_dict_with_gaps(self) -> None:
         gaps = [BackfillGap(missing_open_time=datetime(2025, 1, 1, 8, 15, tzinfo=UTC))]
         result = BackfillResult(
-            symbol="XAUUSDT_UMCBL",
+            symbol="XAU-USDT-SWAP",
             granularity="15m",
             start_time=datetime(2025, 1, 1, 0, 0, tzinfo=UTC),
             end_time=datetime(2025, 1, 2, 0, 0, tzinfo=UTC),
@@ -174,7 +174,7 @@ class TestBackfillResult:
 
     def test_to_dict_dry_run(self) -> None:
         result = BackfillResult(
-            symbol="XAUUSDT_UMCBL",
+            symbol="XAU-USDT-SWAP",
             granularity="5m",
             start_time=datetime(2025, 1, 1, 0, 0, tzinfo=UTC),
             end_time=datetime(2025, 1, 1, 1, 0, tzinfo=UTC),

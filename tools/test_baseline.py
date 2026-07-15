@@ -1,11 +1,12 @@
 """Quick baseline test."""
 
-import sys
 import asyncio
+import sys
 
 sys.path.insert(0, "/home/devistopup13/xauusdt-platform/src")
 
 from datetime import UTC, datetime
+
 from xauusdt.backtest.confluence_engine import ConfluenceBacktestEngine
 from xauusdt.backtest.models import BacktestConfig
 from xauusdt.exchange.models import Candle
@@ -18,7 +19,8 @@ async def main():
         Candle(
             symbol="XAU-USDT-SWAP",
             granularity="15m",
-            open_time=datetime(2026, 7, 8, tzinfo=UTC) + __import__('datetime', fromlist=['timedelta']).timedelta(minutes=i * 15),
+            open_time=datetime(2026, 7, 8, tzinfo=UTC)
+            + __import__("datetime", fromlist=["timedelta"]).timedelta(minutes=i * 15),
             open=100.0 + i * 0.5,
             high=101.0 + i * 0.5,
             low=99.5 + i * 0.4,
@@ -28,12 +30,12 @@ async def main():
         )
         for i in range(100)
     ]
-    
+
     print(f"Created {len(candles)} test candles")
-    
+
     # Config
     bt_config = BacktestConfig(initial_balance=1000, fee_rate=0.0005, slippage_bps=2.0)
-    
+
     strategy_config = ConfluenceConfig(
         min_score=65.0,
         min_score_gap=15.0,
@@ -43,15 +45,15 @@ async def main():
         sl_atr_multiplier=1.5,
         risk_reward_ratio=2.0,
     )
-    
+
     strategy = ConfluenceStrategy(strategy_config)
-    
+
     # Run
     engine = ConfluenceBacktestEngine(bt_config, candles, strategy)
     result = engine.run()
-    
+
     m = result.metrics
-    print(f"\n=== Test Backtest Result ===")
+    print("\n=== Test Backtest Result ===")
     print(f"Candles: {len(candles)}")
     print(f"Trades: {m.total_trades}")
     print(f"Win rate: {m.win_rate * 100:.1f}%")

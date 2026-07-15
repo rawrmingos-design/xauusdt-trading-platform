@@ -13,7 +13,7 @@ from xauusdt.exchange.models import Candle
 
 
 def _make_candle(
-    symbol: str = "XAUUSDT_UMCBL",
+    symbol: str = "XAU-USDT-SWAP",
     granularity: str = "5m",
     hour: int = 14,
     minute: int = 0,
@@ -34,7 +34,7 @@ def _make_candle(
 def _make_ws_message(action: str, granularity: str, data: dict[str, Any]) -> dict[str, Any]:
     """Build a raw WebSocket message dict for candle events."""
     return {
-        "arg": {"channel": granularity, "instId": "XAUUSDT_UMCBL", "period": granularity},
+        "arg": {"channel": granularity, "instId": "XAU-USDT-SWAP", "period": granularity},
         "action": action,
         "data": [data],
     }
@@ -218,7 +218,7 @@ class TestNormalizeCandle:
         }
         candle = LiveCandleCollector._normalize_candle(raw, "5m")
         assert candle is not None
-        assert candle.symbol == "XAUUSDT_UMCBL"
+        assert candle.symbol == "XAU-USDT-SWAP"
         assert candle.granularity == "5m"
         assert candle.open_time.tzinfo is not None
         assert candle.open == 1950.5

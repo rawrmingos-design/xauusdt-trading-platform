@@ -5,7 +5,7 @@ Read-only tool. Never modifies database contents.
 
 Usage:
     uv run python tools/compare_candles.py \\
-        --symbol XAUUSDT_UMCBL \\
+        --symbol XAU-USDT-SWAP \\
         --granularity 15m \\
         --start-time 2026-07-14T00:00:00Z \\
         --end-time 2026-07-14T12:00:00Z \\
@@ -37,7 +37,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Compare stored candles against REST historical candles."
     )
-    parser.add_argument("--symbol", required=True, help="e.g. XAUUSDT_UMCBL")
+    parser.add_argument("--symbol", required=True, help="e.g. XAU-USDT-SWAP")
     parser.add_argument("--granularity", required=True, help="1m, 5m, 15m, 30m, 1H, 4H, 1D")
     parser.add_argument("--start-time", required=True, help="ISO 8601 UTC start")
     parser.add_argument("--end-time", required=True, help="ISO 8601 UTC end")

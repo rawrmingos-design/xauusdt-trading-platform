@@ -17,7 +17,7 @@ class TestParseArgs:
         args = parse_args(
             [
                 "--symbol",
-                "XAUUSDT_UMCBL",
+                "XAU-USDT-SWAP",
                 "--granularity",
                 "15m",
                 "--start-time",
@@ -30,7 +30,7 @@ class TestParseArgs:
                 "json",
             ]
         )
-        assert args.symbol == "XAUUSDT_UMCBL"
+        assert args.symbol == "XAU-USDT-SWAP"
         assert args.granularity == "15m"
         assert args.output == "json"
         assert args.tolerance == pytest.approx(0.00000001)

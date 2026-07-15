@@ -4,19 +4,19 @@ Runs ConfluenceStrategy v1, captures all scores and component passes,
 analyzes the single trade, and produces a diagnostic report.
 """
 
-import sys
 import asyncio
+import json
+import sys
 from collections import defaultdict
 from datetime import UTC, datetime
-import json
 
 sys.path.insert(0, "/home/devistopup13/xauusdt-platform/src")
 
 from xauusdt.backtest.confluence_engine import ConfluenceBacktestEngine
 from xauusdt.backtest.models import BacktestConfig
 from xauusdt.exchange.models import Candle
-from xauusdt.storage.database import init_db, get_session
 from xauusdt.storage.candle_repository import CandleRepository
+from xauusdt.storage.database import get_session, init_db
 from xauusdt.strategy.confluence import ConfluenceConfig, ConfluenceStrategy
 
 
@@ -30,7 +30,7 @@ async def run_diagnostics():
         repo = CandleRepository(session)
         start = datetime(2026, 7, 8, tzinfo=UTC)
         end = datetime(2026, 7, 15, tzinfo=UTC)
-        results = await repo.query_by_range("XAUUSDT_UMCBL", "15m", start, end)
+        results = await repo.query_by_range("XAU-USDT-SWAP", "15m", start, end)
         candle_orms = list(results)
         await session.close()
         break
@@ -39,12 +39,12 @@ async def run_diagnostics():
         print("No candles found in DB")
         return
 
-    print(f"Loaded {len(candle_orms)} candles from XAUUSDT_UMCBL")
+    print(f"Loaded {len(candle_orms)} candles from XAU-USDT-SWAP")
 
     # Convert to Candle model
     candles = [
         Candle(
-            symbol="XAUUSDT_UMCBL",
+            symbol="XAU-USDT-SWAP",
             granularity="15m",
             open_time=r.open_time,
             open=r.open_price,
@@ -88,16 +88,17 @@ async def run_diagnostics():
             return signal
 
         score = strategy._calculate_scores(candle, features)
-        last_score = strategy.get_last_score()
 
-        all_scores.append({
-            "time": str(candle.open_time),
-            "buy_score": score.buy_score,
-            "sell_score": score.sell_score,
-            "gap": abs(score.buy_score - score.sell_score),
-            "buy_reasons": score.buy_reasons,
-            "sell_reasons": score.sell_reasons,
-        })
+        all_scores.append(
+            {
+                "time": str(candle.open_time),
+                "buy_score": score.buy_score,
+                "sell_score": score.sell_score,
+                "gap": abs(score.buy_score - score.sell_score),
+                "buy_reasons": score.buy_reasons,
+                "sell_reasons": score.sell_reasons,
+            }
+        )
 
         # Track component passes
         for r in score.buy_reasons + score.sell_reasons:
@@ -129,7 +130,9 @@ async def run_diagnostics():
 
         # Near-misses: scored 45-64 on one side
         if max_score >= 45 and max_score < 65:
-            reasons_list = score.buy_reasons if score.buy_score > score.sell_score else score.sell_reasons
+            reasons_list = (
+                score.buy_reasons if score.buy_score > score.sell_score else score.sell_reasons
+            )
             reasons_str = "; ".join(reasons_list)
 
             missing = []
@@ -148,13 +151,15 @@ async def run_diagnostics():
             if "Candle" not in reasons_str:
                 missing.append("candle")
 
-            near_misses.append({
-                "time": str(candle.open_time),
-                "max_score": max_score,
-                "direction": "buy" if score.buy_score > score.sell_score else "sell",
-                "missing_components": missing,
-                "reasons": reasons_list,
-            })
+            near_misses.append(
+                {
+                    "time": str(candle.open_time),
+                    "max_score": max_score,
+                    "direction": "buy" if score.buy_score > score.sell_score else "sell",
+                    "missing_components": missing,
+                    "reasons": reasons_list,
+                }
+            )
 
             # Why exactly?
             if max_score < 65:
@@ -212,7 +217,7 @@ async def run_diagnostics():
                 exit_idx = i
 
         if entry_idx is not None and exit_idx is not None:
-            sub_candles = candles[entry_idx:exit_idx + 1]
+            sub_candles = candles[entry_idx : exit_idx + 1]
             high = max(c.high for c in sub_candles)
             low = min(c.low for c in sub_candles)
 
@@ -229,8 +234,15 @@ async def run_diagnostics():
 
     # Score distribution
     score_buckets = {
-        "0-10": 0, "10-20": 0, "20-30": 0, "30-40": 0,
-        "40-50": 0, "50-60": 0, "60-70": 0, "70-80": 0, "80+": 0
+        "0-10": 0,
+        "10-20": 0,
+        "20-30": 0,
+        "30-40": 0,
+        "40-50": 0,
+        "50-60": 0,
+        "60-70": 0,
+        "70-80": 0,
+        "80+": 0,
     }
 
     for s in all_scores:
@@ -252,18 +264,18 @@ async def run_diagnostics():
             "min_score": strategy_config.min_score,
             "min_score_gap": strategy_config.min_score_gap,
             "mismatch": "BACKTEST-002 specified EMA 50/200 in task description, "
-                       "but the strategy's ConfluenceConfig defaults to 9/21. "
-                       "The runner used 9/21 (matching the strategy defaults). "
-                       "This was NOT intentional — the baseline runner should have overridden "
-                       "to 50/200 if that was the intended baseline config.",
+            "but the strategy's ConfluenceConfig defaults to 9/21. "
+            "The runner used 9/21 (matching the strategy defaults). "
+            "This was NOT intentional — the baseline runner should have overridden "
+            "to 50/200 if that was the intended baseline config.",
         },
         "symbol_audit": {
-            "internal_symbol": "XAUUSDT_UMCBL",
+            "internal_symbol": "XAU-USDT-SWAP",
             "external_symbol": "XAU-USDT-SWAP",
-            "mapping": "OKXClient.SYMBOL_MAP maps 'XAUUSDT_UMCBL' -> 'XAU-USDT-SWAP'",
-            "issue": "XAUUSDT_UMCBL looks like a Bitget-style symbol naming (UMCBL suffix). "
-                    "It should probably be 'XAU-USDT-SWAP' for OKX consistency. "
-                    "This needs a canonical symbol mapping module.",
+            "mapping": "OKXClient.SYMBOL_MAP maps 'XAU-USDT-SWAP' -> 'XAU-USDT-SWAP'",
+            "issue": "XAU-USDT-SWAP looks like a Bitget-style symbol naming (UMCBL suffix). "
+            "It should probably be 'XAU-USDT-SWAP' for OKX consistency. "
+            "This needs a canonical symbol mapping module.",
         },
         "data_stats": {
             "total_candles": len(candles),
@@ -280,8 +292,7 @@ async def run_diagnostics():
         "total_trades": result.metrics.total_trades,
         "total_scores": len(all_scores),
         "scores_before_signal": [
-            s for s in all_scores
-            if s["buy_score"] >= 50 or s["sell_score"] >= 50
+            s for s in all_scores if s["buy_score"] >= 50 or s["sell_score"] >= 50
         ],
     }
 
@@ -293,7 +304,7 @@ async def run_diagnostics():
     print(f"\nJSON report: {json_path}")
 
     # Print summary
-    print(f"\n=== DIAGNOSTIC SUMMARY ===")
+    print("\n=== DIAGNOSTIC SUMMARY ===")
     print(f"Scores collected: {len(all_scores)}")
     print(f"Total trades: {result.metrics.total_trades}")
     print(f"Warmup: {min(strategy_config.ema_slow_period + 10, len(candles))} of {len(candles)}")
@@ -301,7 +312,9 @@ async def run_diagnostics():
     print(f"Rejection reasons: {dict(rejection_reasons)}")
     print(f"\nNear-misses (score >= 45 but no signal): {len(near_misses)}")
     for nm in near_misses[:10]:
-        print(f"  {nm['time']} {nm['direction']} score={nm['max_score']} missing={nm['missing_components']}")
+        print(
+            f"  {nm['time']} {nm['direction']} score={nm['max_score']} missing={nm['missing_components']}"
+        )
 
     return report
 

@@ -26,7 +26,7 @@ error() { echo -e "${RED}[FAIL]${NC} $*"; }
 
 HOURS="${1:-4}"
 BASE_URL="https://api.bitget.com"
-SYMBOL="XAUUSDT_UMCBL"
+SYMBOL="XAU-USDT-SWAP"
 GRANULARITY="15m"
 
 # --- Pre-flight ---

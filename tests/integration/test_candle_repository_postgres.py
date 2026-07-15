@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from xauusdt.exchange.models import Candle
 from xauusdt.storage.candle_repository import CandleRepository
 
-TEST_SYMBOL = "XAUUSDT_UMCBL"
+TEST_SYMBOL = "XAU-USDT-SWAP"
 TEST_GRANULARITY = "15m"
 BASE_TIME = datetime(2025, 1, 1, 0, 0, tzinfo=UTC)
 
@@ -247,7 +247,7 @@ class TestUniqueConstraintPostgres:
     ) -> None:
         """Same granularity + open_time but different symbol is allowed."""
         candle1 = Candle(
-            symbol="XAUUSDT_UMCBL",
+            symbol="XAU-USDT-SWAP",
             granularity="15m",
             open_time=BASE_TIME,
             open=100.0,
@@ -412,7 +412,7 @@ class TestQueryByRangePostgres:
         """query_by_range filters by symbol and granularity."""
         candles = [
             Candle(
-                symbol="XAUUSDT_UMCBL",
+                symbol="XAU-USDT-SWAP",
                 granularity="15m",
                 open_time=BASE_TIME,
                 open=10.0,
@@ -437,10 +437,10 @@ class TestQueryByRangePostgres:
         await pg_session.commit()
 
         results = await repo.query_by_range(
-            "XAUUSDT_UMCBL", "15m", start_time=BASE_TIME, end_time=BASE_TIME.replace(hour=1)
+            "XAU-USDT-SWAP", "15m", start_time=BASE_TIME, end_time=BASE_TIME.replace(hour=1)
         )
         assert len(results) == 1
-        assert results[0].symbol == "XAUUSDT_UMCBL"
+        assert results[0].symbol == "XAU-USDT-SWAP"
 
 
 class TestLatestOpenTimePostgres:

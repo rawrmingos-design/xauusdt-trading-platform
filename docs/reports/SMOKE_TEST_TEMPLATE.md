@@ -11,7 +11,7 @@
 
 ```bash
 uv run xauusdt-collect \
-  --symbol XAUUSDT_UMCBL \
+  --symbol XAU-USDT-SWAP \
   --granularities 5m,15m \
   --db-url "$DATABASE_URL" \
   --log-level INFO
@@ -31,7 +31,7 @@ uv run xauusdt-collect \
 
 ```bash
 uv run python tools/validate_candles.py \
-  --symbol XAUUSDT_UMCBL \
+  --symbol XAU-USDT-SWAP \
   --granularity 5m \
   --start-time YYYY-MM-DDTHH:MM:SSZ \
   --end-time YYYY-MM-DDTHH:MM:SSZ \
@@ -42,7 +42,7 @@ uv run python tools/validate_candles.py \
 **Output:**
 ```json
 {
-  "symbol": "XAUUSDT_UMCBL",
+  "symbol": "XAU-USDT-SWAP",
   "granularity": "5m",
   "start_time": "YYYY-MM-DDTHH:MM:SSZ",
   "end_time": "YYYY-MM-DDTHH:MM:SSZ",
@@ -62,7 +62,7 @@ uv run python tools/validate_candles.py \
 
 ```bash
 uv run python tools/validate_candles.py \
-  --symbol XAUUSDT_UMCBL \
+  --symbol XAU-USDT-SWAP \
   --granularity 15m \
   --start-time YYYY-MM-DDTHH:MM:SSZ \
   --end-time YYYY-MM-DDTHH:MM:SSZ \
@@ -73,7 +73,7 @@ uv run python tools/validate_candles.py \
 **Output:**
 ```json
 {
-  "symbol": "XAUUSDT_UMCBL",
+  "symbol": "XAU-USDT-SWAP",
   "granularity": "15m",
   "start_time": "YYYY-MM-DDTHH:MM:SSZ",
   "end_time": "YYYY-MM-DDTHH:MM:SSZ",
@@ -97,7 +97,7 @@ uv run python tools/validate_candles.py \
 
 ```bash
 uv run python tools/compare_candles.py \
-  --symbol XAUUSDT_UMCBL \
+  --symbol XAU-USDT-SWAP \
   --granularity 5m \
   --start-time YYYY-MM-DDTHH:MM:SSZ \
   --end-time YYYY-MM-DDTHH:MM:SSZ \
@@ -109,7 +109,7 @@ uv run python tools/compare_candles.py \
 **Output:**
 ```json
 {
-  "symbol": "XAUUSDT_UMCBL",
+  "symbol": "XAU-USDT-SWAP",
   "granularity": "5m",
   "start_time": "YYYY-MM-DDTHH:MM:SSZ",
   "end_time": "YYYY-MM-DDTHH:MM:SSZ",
@@ -131,7 +131,7 @@ uv run python tools/compare_candles.py \
 
 ```bash
 uv run python tools/compare_candles.py \
-  --symbol XAUUSDT_UMCBL \
+  --symbol XAU-USDT-SWAP \
   --granularity 15m \
   --start-time YYYY-MM-DDTHH:MM:SSZ \
   --end-time YYYY-MM-DDTHH:MM:SSZ \
@@ -143,7 +143,7 @@ uv run python tools/compare_candles.py \
 **Output:**
 ```json
 {
-  "symbol": "XAUUSDT_UMCBL",
+  "symbol": "XAU-USDT-SWAP",
   "granularity": "15m",
   "start_time": "YYYY-MM-DDTHH:MM:SSZ",
   "end_time": "YYYY-MM-DDTHH:MM:SSZ",

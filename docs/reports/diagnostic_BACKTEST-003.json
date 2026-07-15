@@ -7,10 +7,10 @@
     "mismatch": "BACKTEST-002 specified EMA 50/200 in task description, but the strategy's ConfluenceConfig defaults to 9/21. The runner used 9/21 (matching the strategy defaults). This was NOT intentional \u2014 the baseline runner should have overridden to 50/200 if that was the intended baseline config."
   },
   "symbol_audit": {
-    "internal_symbol": "XAUUSDT_UMCBL",
+    "internal_symbol": "XAU-USDT-SWAP",
     "external_symbol": "XAU-USDT-SWAP",
-    "mapping": "OKXClient.SYMBOL_MAP maps 'XAUUSDT_UMCBL' -> 'XAU-USDT-SWAP'",
-    "issue": "XAUUSDT_UMCBL looks like a Bitget-style symbol naming (UMCBL suffix). It should probably be 'XAU-USDT-SWAP' for OKX consistency. This needs a canonical symbol mapping module."
+    "mapping": "OKXClient.SYMBOL_MAP maps 'XAU-USDT-SWAP' -> 'XAU-USDT-SWAP'",
+    "issue": "XAU-USDT-SWAP looks like a Bitget-style symbol naming (UMCBL suffix). It should probably be 'XAU-USDT-SWAP' for OKX consistency. This needs a canonical symbol mapping module."
   },
   "data_stats": {
     "total_candles": 672,

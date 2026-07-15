@@ -35,12 +35,12 @@ class TestWsSubscribeMessage:
             arg={
                 "instType": "USDT-FUTURE",
                 "channel": "candle",
-                "instId": "XAUUSDT_UMCBL",
+                "instId": "XAU-USDT-SWAP",
                 "period": "5m",
             }
         )
         assert msg.type == "subscribe"
-        assert msg.arg["instId"] == "XAUUSDT_UMCBL"
+        assert msg.arg["instId"] == "XAU-USDT-SWAP"
         assert msg.arg["period"] == "5m"
 
     def test_serializes_correctly(self) -> None:
@@ -48,7 +48,7 @@ class TestWsSubscribeMessage:
             arg={
                 "instType": "USDT-FUTURE",
                 "channel": "candle",
-                "instId": "XAUUSDT_UMCBL",
+                "instId": "XAU-USDT-SWAP",
                 "period": "1H",
             }
         )
@@ -61,7 +61,7 @@ class TestWsCandleStickSnapshot:
 
     def test_parses_snapshot(self) -> None:
         raw = {
-            "arg": {"instId": "XAUUSDT_UMCBL", "period": "5m"},
+            "arg": {"instId": "XAU-USDT-SWAP", "period": "5m"},
             "action": "snapshot",
             "data": [
                 {
@@ -83,7 +83,7 @@ class TestWsCandleStickSnapshot:
 
     def test_parses_update(self) -> None:
         raw = {
-            "arg": {"instId": "XAUUSDT_UMCBL", "period": "15m"},
+            "arg": {"instId": "XAU-USDT-SWAP", "period": "15m"},
             "action": "update",
             "data": [
                 {

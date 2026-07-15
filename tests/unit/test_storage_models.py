@@ -9,7 +9,7 @@ from xauusdt.storage.models import CandleOrm
 class TestCandleOrmFromCandle:
     def test_basic_conversion(self) -> None:
         candle = Candle(
-            symbol="XAUUSDT_UMCBL",
+            symbol="XAU-USDT-SWAP",
             granularity="5m",
             open_time=datetime(2026, 7, 14, 10, 0, tzinfo=UTC),
             open=3500.0,
@@ -20,7 +20,7 @@ class TestCandleOrmFromCandle:
             quote_volume=350000.0,
         )
         orm = CandleOrm.from_candle(candle)
-        assert orm.symbol == "XAUUSDT_UMCBL"
+        assert orm.symbol == "XAU-USDT-SWAP"
         assert orm.granularity == "5m"
         assert orm.open_time == candle.open_time
         assert orm.close_time == candle.close_time
@@ -33,7 +33,7 @@ class TestCandleOrmFromCandle:
 
     def test_defaults(self) -> None:
         candle = Candle(
-            symbol="XAUUSDT_UMCBL",
+            symbol="XAU-USDT-SWAP",
             granularity="1H",
             open_time=datetime(2026, 7, 14, 12, 0, tzinfo=UTC),
             open=3500.0,
