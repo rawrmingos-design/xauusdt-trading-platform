@@ -1,0 +1,68 @@
+{
+  "task_id": "PROJECT-DATA-007",
+  "title": "OKX Exchange Migration \u2014 replace Bitget with OKX candle data provider",
+  "status": "merged",
+  "pull_request_url": "https://github.com/rawrmingos-design/xauusdt-trading-platform/pull/13",
+  "merge_commit_sha": "f8bfef55171b84d947a10753dad0b4951c944e27",
+  "summary": "Migrated from Bitget to OKX exchange due to Bitget IP-blocked endpoints. Implemented full OKX support including REST client, WebSocket client, backfill service, live collector, CLI, and validation tool.",
+  "deliverables": [
+    {
+      "file": "src/xauusdt/exchange/okx_client.py",
+      "type": "new",
+      "description": "OKX REST API client \u2014 fetches candles with pagination using OKX's after-based cursor. Converts OKX candle format [ts,o,h,l,c,vol,...] to normalized Candle model. Supports all granularities (1m, 5m, 15m, 30m, 1H, 4H, 1D). Rate limiting with tenacity retry."
+    },
+    {
+      "file": "src/xauusdt/exchange/okx_websocket.py",
+      "type": "new",
+      "description": "OKX WebSocket client \u2014 connects to wss://ws.okx.com:8443/ws/v5/public, subscribes to candlestick channel, dispatches parsed Candle objects to handlers. Includes auto-reconnect with exponential backoff and ping keepalive."
+    },
+    {
+      "file": "src/xauusdt/collectors/okx_backfill.py",
+      "type": "new",
+      "description": "OKX backfill service \u2014 paginates through OKX history using after-cursor backward pagination. Gap detection, idempotent upsert via CandleRepository, structured OKXBackfillResult with stats."
+    },
+    {
+      "file": "src/xauusdt/collectors/okx_live.py",
+      "type": "new",
+      "description": "OKXLiveCollector \u2014 persistent WebSocket session that subscribes to XAU-USDT-SWAP 15m candles, dispatches to handler, and persists each candle via CandleRepository.upsert_many. Includes retry logic."
+    },
+    {
+      "file": "src/xauusdt/collectors/cli.py",
+      "type": "modified",
+      "description": "Added --exchange bitget/okx flag to CLI backfill. Supports both exchanges from same command."
+    },
+    {
+      "file": "tools/validate_okx_candles.py",
+      "type": "new",
+      "description": "Validation tool \u2014 fetches candles from OKX API, compares against database records (open_price, high, low, close with 0.01% tolerance), reports match/mismatch counts."
+    }
+  ],
+  "api_validation": {
+    "endpoint": "https://www.okx.com/api/v5/market/candles",
+    "symbol": "XAU-USDT-SWAP",
+    "granularity": "15m",
+    "test_result": "200 OK \u2014 returned real OHLCV data",
+    "example_candle": {
+      "open_time": "2026-07-15T05:00:00+00:00",
+      "open": 4039.2,
+      "high": 4041.6,
+      "low": 4029.4,
+      "close": 4031.8,
+      "volume": 751832
+    },
+    "backfill_test": {
+      "range": "2026-07-14T00:00:00Z to 2026-07-15T00:00:00Z",
+      "granularity": "15m",
+      "downloaded": 96,
+      "gaps": 0,
+      "status": "success"
+    }
+  },
+  "quality_checks": {
+    "ruff_check": "passed",
+    "ruff_format": "passed (50 files)",
+    "mypy": "passed (29 files, 0 errors)",
+    "pytest": "126 passed, 16 skipped"
+  },
+  "bitget_reason": "All Bitget public endpoints (history-candles, kline, etc.) return 400172 Parameter verification failed. Only /tickers without query params works. Root cause: IP blocked by Bitget (likely cloud/datacenter IP block or geo-restriction). All 10 residential proxies from datacenter IPs also blocked."
+}

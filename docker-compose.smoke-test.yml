@@ -1,0 +1,11 @@
+services:
+  smoke-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.smoke-test
+    environment:
+      - APP_NAME=xauusdt-smoke-test
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./smoke_test_data:/app/smoke_test_data
+      - ./smoke_test.db:/app/smoke_test.db

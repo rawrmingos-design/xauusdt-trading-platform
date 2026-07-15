@@ -91,6 +91,7 @@ class CandleRepository:
             self._session.add(orm)
             inserted += 1
         await self._session.flush()
+        await self._session.commit()
         return inserted
 
     async def _list_existing(self, candles: list[Any]) -> set[tuple[str, str, datetime]]:
