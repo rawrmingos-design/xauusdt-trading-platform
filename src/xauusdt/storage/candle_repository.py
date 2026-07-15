@@ -66,7 +66,6 @@ class CandleRepository:
         stmt = stmt.on_conflict_do_update(
             constraint="uq_candle_symbol_granularity_time",
             set_={
-                "close_price": stmt.excluded.close,
                 "high": stmt.excluded.high,
                 "low": stmt.excluded.low,
                 "close": stmt.excluded.close,
@@ -77,6 +76,7 @@ class CandleRepository:
         )
 
         result = await self._session.execute(stmt)
+        await self._session.commit()
         return result.rowcount  # type: ignore[attr-defined, no-any-return]
 
     async def _upsert_sqlite(self, candles: list[Any]) -> int:
