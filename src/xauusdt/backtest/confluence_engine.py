@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from xauusdt.backtest.engine import BacktestEngine
-from xauusdt.backtest.models import BacktestPosition, Signal, Side
+from xauusdt.backtest.models import BacktestPosition, Side, Signal
 from xauusdt.exchange.models import Candle as CandleModel
 from xauusdt.strategy.confluence import ConfluenceStrategy
 
@@ -47,7 +47,7 @@ class ConfluenceBacktestEngine(BacktestEngine):
         if features and features.atr_14.valid and features.atr_14.atr_value > 0:
             atr_value = features.atr_14.atr_value
             sl_distance = atr_value * cfg.sl_atr_multiplier
-            
+
             if side == Side.LONG:
                 sl_price = entry_price - sl_distance
                 tp_price = entry_price + (sl_distance * cfg.risk_reward_ratio)
@@ -63,6 +63,17 @@ class ConfluenceBacktestEngine(BacktestEngine):
                 sl_price = entry_price * (1 + 0.02)
                 tp_price = entry_price * (1 - 0.02 * cfg.risk_reward_ratio)
 
+        # Partial TP setup (PROJECT-STRATEGY-003 Improved Exit Model)
+        partial_tp_price = None
+        if cfg.improved_exit:
+            # Recompute SL distance just in case
+            calc_sl_dist = abs(entry_price - sl_price)
+            # Default to 1.0R for partial TP
+            if side == Side.LONG:
+                partial_tp_price = entry_price + calc_sl_dist
+            else:
+                partial_tp_price = entry_price - calc_sl_dist
+
         self._position = BacktestPosition(
             side=side,
             entry_candle_time=candle.open_time.isoformat(),
@@ -70,4 +81,5 @@ class ConfluenceBacktestEngine(BacktestEngine):
             quantity=quantity,
             stop_loss_price=sl_price,
             take_profit_price=tp_price,
+            partial_tp_price=partial_tp_price,
         )

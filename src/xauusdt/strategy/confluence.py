@@ -56,12 +56,16 @@ class ConfluenceConfig:
     atr_min: float = 0.0  # 0 = no minimum
     atr_max: float = 50.0  # cap at 50 price units
 
-    # Risk management
+    # Engine limits (if applied)
     sl_atr_multiplier: float = 1.5
     risk_reward_ratio: float = 2.0
 
+    # Improved Exit Model (PROJECT-STRATEGY-003)
+    improved_exit: bool = False  # Set to True to enable partial TP and break-even SL
+
     # Sensitivity/Ablation Parameters (defaults match v1 spec)
     swing_lookback: int = 10
+    weight_structure: float = 40.0
     weight_ema: float = 20.0
     weight_price_ema: float = 10.0
     weight_adx: float = 15.0

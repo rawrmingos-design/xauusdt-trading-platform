@@ -65,7 +65,8 @@ class BacktestTrade:
     pnl_pct: float
     fee: float
     slippage_cost: float
-    exit_reason: str  # "SL", "TP", "SIGNAL", "EOL"
+    exit_reason: str  # "SL", "TP", "SIGNAL", "EOL", "PARTIAL_TP"
+    is_partial: bool = False  # True if this is a partial exit trade
     # Exit Model Diagnostics (added for BACKTEST-007)
     max_mfe: float = 0.0  # max favorable excursion (price)
     max_mfe_pct: float = 0.0  # max favorable excursion (pct)
@@ -105,6 +106,10 @@ class BacktestPosition:
     max_mae_price: float = 0.0  # worst price reached (against)
     sl_distance: float = 0.0  # abs(entry - SL) for R-calculation
 
+    # Improved Exit Model (PROJECT-STRATEGY-003)
+    partial_tp_price: float | None = None
+    is_partial_closed: bool = False
+
     def _update_excursions(self, candle: Candle) -> None:
         """Track MFE and MAE during holding."""
         if self.side == Side.LONG:
@@ -126,6 +131,14 @@ class BacktestPosition:
         if self.side == Side.LONG:
             return candle.low <= self.stop_loss_price
         return candle.high >= self.stop_loss_price
+
+    def is_partial_tp_hit(self, candle: Candle) -> bool:
+        """Check if partial TP (1.0R) was hit."""
+        if self.partial_tp_price is None or self.is_partial_closed:
+            return False
+        if self.side == Side.LONG:
+            return candle.high >= self.partial_tp_price
+        return candle.low <= self.partial_tp_price
 
     def is_tp_hit(self, candle: Candle) -> bool:
         """Check if TP was hit within candle high/low range."""
