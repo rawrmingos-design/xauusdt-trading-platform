@@ -27,9 +27,8 @@ async def main():
     async for session in get_session():
         repo = CandleRepository(session)
 
-        start = datetime(2026, 7, 8, tzinfo=UTC)
-        end = datetime(2026, 7, 15, tzinfo=UTC)
-        results = await repo.query_by_range("XAU-USDT-SWAP", "15m", start, end)
+        # Fetch all available 15m data
+        results = await repo.query_by_range("XAU-USDT-SWAP", "15m", limit=100000)
         candle_orms = list(results)
         await session.close()
         break
@@ -68,8 +67,8 @@ async def main():
     strategy_config = ConfluenceConfig(
         min_score=65.0,
         min_score_gap=15.0,
-        ema_fast_period=9,
-        ema_slow_period=21,
+        ema_fast_period=50,
+        ema_slow_period=200,
         adx_min=20.0,
         sl_atr_multiplier=1.5,
         risk_reward_ratio=2.0,
@@ -165,7 +164,7 @@ async def main():
         f.write(f"| Expectancy | {m.expectancy:.2f} |\n\n")
         f.write("## Known Limitations\n\n")
         f.write(
-            "- 7-day data range\n- 15m granularity only\n- Confluence v1 (not optimized)\n- No parameter optimization\n"
+            "- 90-day data range\n- 15m granularity only\n- Confluence v1 (not optimized)\n- No parameter optimization\n"
         )
     print(f"Markdown report: {md_file}")
 
