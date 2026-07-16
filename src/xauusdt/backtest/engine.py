@@ -81,8 +81,13 @@ class BacktestEngine:
             if self._position.is_sl_hit(candle):
                 self._close_position(candle, "SL")
                 return
-            # Check TP
-            if self._position.is_tp_hit(candle):
+
+            # Check Partial TP (PROJECT-STRATEGY-003)
+            if self._position.is_partial_tp_hit(candle):
+                self._close_position(candle, "PARTIAL_TP", partial=True)
+
+            # Check Full TP (might be hit in the same candle as Partial TP!)
+            if self._position is not None and self._position.is_tp_hit(candle):
                 self._close_position(candle, "TP")
                 return
 
@@ -162,28 +167,47 @@ class BacktestEngine:
             tp_price,
         )
 
-    def _close_position(self, candle: Candle, reason: str) -> None:
-        """Close current position and record trade."""
+    def _close_position(self, candle: Candle, reason: str, partial: bool = False) -> None:
+        """Close current position (or partially close it) and record trade."""
         if self._position is None:
             return
 
         exit_price = self._apply_slippage(candle.close, self._position.side)
-        fee = exit_price * self._position.quantity * self._config.fee_rate
+
+        # If partial close, we only close 50% of the position
+        close_quantity = self._position.quantity
+        if partial:
+            close_quantity = self._position.quantity / 2.0
+
+        fee = exit_price * close_quantity * self._config.fee_rate
         self._balance -= fee
 
         # Calculate PnL
         pnl: float
         if self._position.side == Side.LONG:
-            pnl = (exit_price - self._position.entry_price) * self._position.quantity
+            pnl = (exit_price - self._position.entry_price) * close_quantity
         else:
-            pnl = (self._position.entry_price - exit_price) * self._position.quantity
+            pnl = (self._position.entry_price - exit_price) * close_quantity
 
         pnl_pct = (
-            pnl / self._position.entry_price / self._position.quantity * 100
+            pnl / self._position.entry_price / close_quantity * 100
             if self._position.entry_price > 0
             else 0
         )
-        slippage_cost = abs(exit_price - candle.close) * self._position.quantity
+        slippage_cost = abs(exit_price - candle.close) * close_quantity
+
+        # Exit Model Diagnostics (BACKTEST-007)
+        max_mfe = self._position.max_mfe_price
+        max_mae = self._position.max_mae_price
+        sl_dist = abs(self._position.entry_price - (self._position.stop_loss_price or self._position.entry_price))
+        if sl_dist > 0:
+            max_r = max_mfe / sl_dist
+        else:
+            max_r = 0.0
+
+        max_mfe_pct = (max_mfe / self._position.entry_price) * 100 if self._position.entry_price > 0 else 0.0
+        max_mae_pct = (max_mae / self._position.entry_price) * 100 if self._position.entry_price > 0 else 0.0
+        atr_at_entry = getattr(candle, "_atr_at_entry", 0.0)
 
         # Exit Model Diagnostics (BACKTEST-007)
         max_mfe = self._position.max_mfe_price
@@ -204,12 +228,13 @@ class BacktestEngine:
             exit_candle_time=candle.open_time.isoformat(),
             exit_price=exit_price,
             side=self._position.side.value,
-            quantity=self._position.quantity,
+            quantity=close_quantity,
             pnl=pnl,
             pnl_pct=pnl_pct,
             fee=fee,
             slippage_cost=slippage_cost,
             exit_reason=reason,
+            is_partial=partial,
             max_mfe=max_mfe,
             max_mfe_pct=max_mfe_pct,
             max_mae=max_mae,
@@ -220,7 +245,15 @@ class BacktestEngine:
         )
         self._trades.append(trade)
         self._balance += pnl  # Add PnL to balance
-        self._position = None
+
+        if partial:
+            # Mark as partially closed, reduce quantity
+            self._position.is_partial_closed = True
+            self._position.quantity -= close_quantity
+            # Move SL to break-even
+            self._position.stop_loss_price = self._position.entry_price
+        else:
+            self._position = None
 
         log.debug(
             "CLOSE %s reason=%s @ %.2f pnl=%.2f (%.2f%%)",
