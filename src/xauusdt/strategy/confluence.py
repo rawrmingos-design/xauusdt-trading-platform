@@ -70,6 +70,13 @@ class ConfluenceConfig:
     weight_atr: float = 10.0
     weight_candle: float = 5.0
 
+    # V2 quality filters (all disabled in v1, configurable for v2)
+    adx_rising: bool = False  # Require ADX to be increasing (trend strengthening)
+    ema_slope_alignment: bool = False  # Require EMA(50) slope aligned with trade direction
+
+    # Version label for report identification
+    version: str = "v1"
+
     def to_dict(self) -> dict[str, Any]:
         return {k: getattr(self, k) for k in self.__dataclass_fields__}
 
@@ -106,6 +113,8 @@ class ConfluenceStrategy:
         self._config = config or ConfluenceConfig()
         self._last_score: ScoreResult = ScoreResult(0.0, 0.0)
         self._history: list[Candle] = []
+        self._prev_adx: float | None = None
+        self._prev_ema_9: float | None = None
 
     def on_candle(self, candle: Candle, position: BacktestPosition | None) -> Signal:
         """Called on each candle.
@@ -133,7 +142,7 @@ class ConfluenceStrategy:
         self._last_score = score
 
         # Decision logic
-        signal = self._decide(score, position)
+        signal = self._decide(score, position, features)
         return signal
 
     def _compute_features(self) -> CandleFeatures | None:
@@ -165,6 +174,15 @@ class ConfluenceStrategy:
 
         features = features_list[-1]
         assert features is not None
+
+        # Cache previous candle features for V2 filters
+        if len(features_list) >= 2 and features_list[-2] is not None:
+            self._prev_adx = features_list[-2].adx_14.adx_value if features_list[-2].adx_14.valid else None
+            self._prev_ema_9 = features_list[-2].ema_9.ema_value if features_list[-2].ema_9.valid else None
+        else:
+            self._prev_adx = None
+            self._prev_ema_9 = None
+
         return features
 
     def _calculate_scores(self, candle: Candle, features: CandleFeatures) -> ScoreResult:
@@ -275,8 +293,13 @@ class ConfluenceStrategy:
 
         return min(score, 100.0)  # Cap at 100
 
-    def _decide(self, score: ScoreResult, position: BacktestPosition | None) -> Signal:
-        """Decide signal based on scores and thresholds."""
+    def _decide(
+        self,
+        score: ScoreResult,
+        position: BacktestPosition | None,
+        features: CandleFeatures,
+    ) -> Signal:
+        """Decide signal based on scores, thresholds, and V2 quality filters."""
         gap = abs(score.buy_score - score.sell_score)
 
         # If we have a position, we only look for close signals
@@ -288,13 +311,40 @@ class ConfluenceStrategy:
                 return Signal.BUY  # Close short
             return Signal.HOLD
 
-        # No position: evaluate entry
+        # No position: evaluate entry with V2 quality filters
         if score.buy_score >= self._config.min_score and gap >= self._config.min_score_gap:
+            if not self._apply_v2_quality(score, features, "buy"):
+                return Signal.HOLD
             return Signal.BUY
         if score.sell_score >= self._config.min_score and gap >= self._config.min_score_gap:
+            if not self._apply_v2_quality(score, features, "sell"):
+                return Signal.HOLD
             return Signal.SELL
 
         return Signal.HOLD
+
+    def _apply_v2_quality(self, score: ScoreResult, features: CandleFeatures, side: str) -> bool:
+        """Apply Strategy V2 quality filters.
+
+        Returns True if the signal passes all configured v2 filters, False to reject.
+        """
+        # ADX rising filter: requires ADX to be strictly greater than the previous candle's ADX
+        if self._config.adx_rising and features.adx_14.valid:
+            if self._prev_adx is None or features.adx_14.adx_value <= self._prev_adx:
+                return False
+
+        # EMA slope alignment filter
+        if self._config.ema_slope_alignment and features.ema_9.valid:
+            if self._prev_ema_9 is None:
+                return False
+
+            slope_rising = features.ema_9.ema_value > self._prev_ema_9
+            if side == "buy" and not slope_rising:
+                return False
+            if side == "sell" and slope_rising:
+                return False
+
+        return True
 
     def _check_exit(
         self, candle: Candle, position: BacktestPosition, features: CandleFeatures
