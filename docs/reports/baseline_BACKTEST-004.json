@@ -1,0 +1,56 @@
+{
+  "data": {
+    "symbol": "XAU-USDT-SWAP",
+    "granularity": "15m",
+    "start": "2026-04-16",
+    "end": "2026-07-14",
+    "candle_count": 8640
+  },
+  "config": {
+    "backtest": {
+      "initial_balance": 1000,
+      "fee_rate": 0.0005,
+      "slippage_bps": 2.0
+    },
+    "strategy": {
+      "ema_fast_period": 50,
+      "ema_slow_period": 200,
+      "min_score": 65.0,
+      "min_score_gap": 15.0,
+      "adx_min": 20.0,
+      "sl_atr_multiplier": 1.5,
+      "risk_reward_ratio": 2.0
+    }
+  },
+  "metrics": {
+    "net_pnl": -158.82,
+    "final_balance": 841.18,
+    "total_trades": 1,
+    "win_trades": 0,
+    "loss_trades": 1,
+    "win_rate": 0.0,
+    "profit_factor": 0.0,
+    "max_drawdown": 177.53,
+    "max_drawdown_pct": 17.8,
+    "expectancy": -158.82
+  },
+  "comparison": {
+    "previous_baseline": {
+      "report": "baseline_20260716_015359.md",
+      "data": "7 days",
+      "config": "EMA 9/21",
+      "trades": 11,
+      "win_rate": 63.6,
+      "net_pnl": -48.82,
+      "final_balance": 951.18
+    },
+    "context": "The EMA 9/21 baseline generated 11 trades in 7 days with a 63.6% win rate but still net negative PnL. The EMA 50/200 baseline generated only 1 trade in 90 days because the confluence requirements are very strict (EMA 50/200 trend alignment requires longer timeframes, and all 7 confluence factors must align in a single 15m candle to trigger a signal)."
+  },
+  "known_limitations": [
+    "Only 1 trade in 90 days — insufficient sample size for statistical significance.",
+    "EMA 50/200 on 15m is extremely strict — requires alignment of EMA cross, pullback, ADX, structure, swing, and candle direction in a single bar.",
+    "90-day range includes a significant bearish trend (April 16 to July 14), which penalizes long-only entries.",
+    "No parameter optimization has been performed; weights and thresholds are defaults from the spec.",
+    "Slippage (2 bps) and fees (0.05%) are estimates."
+  ]
+}

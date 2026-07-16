@@ -1,4 +1,4 @@
-"""Diagnostic baseline backtest for PROJECT-BACKTEST-003.
+"""Diagnostic baseline backtest for PROJECT-BACKTEST-004.
 
 Runs ConfluenceStrategy v1, captures all scores and component passes,
 analyzes the single trade, and produces a diagnostic report.
@@ -8,7 +8,6 @@ import asyncio
 import json
 import sys
 from collections import defaultdict
-from datetime import UTC, datetime
 
 sys.path.insert(0, "/home/devistopup13/xauusdt-platform/src")
 
@@ -28,9 +27,8 @@ async def run_diagnostics():
     candle_orms = []
     async for session in get_session():
         repo = CandleRepository(session)
-        start = datetime(2026, 7, 8, tzinfo=UTC)
-        end = datetime(2026, 7, 15, tzinfo=UTC)
-        results = await repo.query_by_range("XAU-USDT-SWAP", "15m", start, end)
+        # Fetch all available 15m data
+        results = await repo.query_by_range("XAU-USDT-SWAP", "15m", limit=100000)
         candle_orms = list(results)
         await session.close()
         break
@@ -61,8 +59,8 @@ async def run_diagnostics():
     strategy_config = ConfluenceConfig(
         min_score=65.0,
         min_score_gap=15.0,
-        ema_fast_period=9,
-        ema_slow_period=21,
+        ema_fast_period=50,
+        ema_slow_period=200,
         adx_min=20.0,
         sl_atr_multiplier=1.5,
         risk_reward_ratio=2.0,
@@ -298,7 +296,7 @@ async def run_diagnostics():
 
     # Save
     report_dir = "docs/reports"
-    json_path = f"{report_dir}/diagnostic_BACKTEST-003.json"
+    json_path = f"{report_dir}/diagnostic_BACKTEST-004.json"
     with open(json_path, "w") as f:
         json.dump(report, f, indent=2)
     print(f"\nJSON report: {json_path}")

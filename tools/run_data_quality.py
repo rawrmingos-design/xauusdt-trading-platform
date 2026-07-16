@@ -258,7 +258,7 @@ async def main():
         "",
         "## Known Limitations",
         "",
-    ] + [f"- {l}" for l in report["known_limitations"]] + [
+    ] + [f"- {limit}" for limit in report["known_limitations"]] + [
         "",
         "## Recommended Next Steps",
         "",

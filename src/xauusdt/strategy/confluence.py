@@ -128,6 +128,11 @@ class ConfluenceStrategy:
 
     def _compute_features(self) -> CandleFeatures | None:
         """Compute features from candle history."""
+        # Limit history to prevent O(N^2) slowdown during long backtests
+        max_history = max(self._config.ema_slow_period * 2, 400)
+        if len(self._history) > max_history:
+            self._history = self._history[-max_history:]
+
         if len(self._history) < self._config.ema_slow_period + 10:
             return None
 
@@ -247,13 +252,17 @@ class ConfluenceStrategy:
             "Bullish candle": 5.0,
             "Bearish candle": 5.0,
         }
-        # Swing reasons are counted as part of the base score
-        swing_bonus = 0.0
+        score = 0.0
         for r in reasons:
             if "swing" in r.lower():
-                swing_bonus = 10.0
+                score += 10.0
+            elif r.startswith("ADX strong"):
+                score += 15.0
+            elif r.startswith("ATR normal"):
+                score += 10.0
+            else:
+                score += weights.get(r, 0.0)
 
-        score = sum(weights.get(r, 0.0) for r in reasons) + swing_bonus
         return min(score, 100.0)  # Cap at 100
 
     def _decide(self, score: ScoreResult, position: BacktestPosition | None) -> Signal:

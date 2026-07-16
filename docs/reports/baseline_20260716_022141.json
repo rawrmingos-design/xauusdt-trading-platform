@@ -1,0 +1,42 @@
+{
+  "data": {
+    "symbol": "XAU-USDT-SWAP",
+    "granularity": "15m",
+    "start": "2026-04-16 00:00:00+00:00",
+    "end": "2026-07-14 23:45:00+00:00",
+    "candle_count": 8640
+  },
+  "config": {
+    "backtest": {
+      "initial_balance": 1000,
+      "fee_rate": 0.0005,
+      "slippage_bps": 2.0,
+      "stop_loss_pct": 0.0,
+      "take_profit_pct": 0.0,
+      "max_position_size_pct": 1.0
+    },
+    "strategy": {
+      "min_score": 65.0,
+      "min_score_gap": 15.0,
+      "ema_fast_period": 50,
+      "ema_slow_period": 200,
+      "adx_min": 20.0,
+      "atr_min": 0.0,
+      "atr_max": 50.0,
+      "sl_atr_multiplier": 1.5,
+      "risk_reward_ratio": 2.0
+    }
+  },
+  "metrics": {
+    "net_pnl": -158.81588334820776,
+    "final_balance": 841.1841166517922,
+    "total_trades": 1,
+    "win_trades": 0,
+    "loss_trades": 1,
+    "win_rate": 0.0,
+    "profit_factor": 0.0,
+    "max_drawdown": 177.53329150702552,
+    "max_drawdown_pct": 0.17753329150702551,
+    "expectancy": -158.81588334820776
+  }
+}
