@@ -60,6 +60,16 @@ class ConfluenceConfig:
     sl_atr_multiplier: float = 1.5
     risk_reward_ratio: float = 2.0
 
+    # Sensitivity/Ablation Parameters (defaults match v1 spec)
+    swing_lookback: int = 10
+    weight_ema: float = 20.0
+    weight_price_ema: float = 10.0
+    weight_adx: float = 15.0
+    weight_structure: float = 20.0
+    weight_swing: float = 10.0
+    weight_atr: float = 10.0
+    weight_candle: float = 5.0
+
     def to_dict(self) -> dict[str, Any]:
         return {k: getattr(self, k) for k in self.__dataclass_fields__}
 
@@ -190,15 +200,17 @@ class ConfluenceStrategy:
             elif features.structure.structure == MarketStructure.BEARISH:
                 sell_reasons.append("Structure bearish")
 
-        # 5. Swing context (max +10 each)
+        # 5. Swing context (max +weight_swing each)
         if (
             features.structure.swing_low
-            and features.structure.swing_low.index >= len(self._history) - 10
+            and features.structure.swing_low.index
+            >= len(self._history) - self._config.swing_lookback
         ):
             buy_reasons.append("Recent swing low support")
         if (
             features.structure.swing_high
-            and features.structure.swing_high.index >= len(self._history) - 10
+            and features.structure.swing_high.index
+            >= len(self._history) - self._config.swing_lookback
         ):
             sell_reasons.append("Recent swing high resistance")
 
@@ -239,27 +251,25 @@ class ConfluenceStrategy:
         if not has_history:
             return 0.0
 
-        # Fixed weights matching the spec
+        # Fixed weights mapping from config
         weights: dict[str, float] = {
-            "EMA fast > slow": 20.0,
-            "EMA fast < slow": 20.0,
-            "Price above EMA slow": 10.0,
-            "Price below EMA slow": 10.0,
-            "ADX strong": 15.0,
-            "Structure bullish": 20.0,
-            "Structure bearish": 20.0,
-            "ATR normal": 10.0,
-            "Bullish candle": 5.0,
-            "Bearish candle": 5.0,
+            "EMA fast > slow": self._config.weight_ema,
+            "EMA fast < slow": self._config.weight_ema,
+            "Price above EMA slow": self._config.weight_price_ema,
+            "Price below EMA slow": self._config.weight_price_ema,
+            "Structure bullish": self._config.weight_structure,
+            "Structure bearish": self._config.weight_structure,
+            "Bullish candle": self._config.weight_candle,
+            "Bearish candle": self._config.weight_candle,
         }
         score = 0.0
         for r in reasons:
             if "swing" in r.lower():
-                score += 10.0
+                score += self._config.weight_swing
             elif r.startswith("ADX strong"):
-                score += 15.0
+                score += self._config.weight_adx
             elif r.startswith("ATR normal"):
-                score += 10.0
+                score += self._config.weight_atr
             else:
                 score += weights.get(r, 0.0)
 

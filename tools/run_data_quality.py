@@ -22,23 +22,27 @@ async def get_db_stats(session, symbol, granularity):
     results = {}
 
     # Total count
-    res = await session.execute(text(
-        "SELECT COUNT(*) FROM candles WHERE symbol=:sym AND granularity=:gran"
-    ), {"sym": symbol, "gran": granularity})
+    res = await session.execute(
+        text("SELECT COUNT(*) FROM candles WHERE symbol=:sym AND granularity=:gran"),
+        {"sym": symbol, "gran": granularity},
+    )
     results["total_count"] = res.scalar()
 
     # Min/Max time
-    res = await session.execute(text(
-        "SELECT min(open_time), max(open_time) FROM candles WHERE symbol=:sym AND granularity=:gran"
-    ), {"sym": symbol, "gran": granularity})
+    res = await session.execute(
+        text(
+            "SELECT min(open_time), max(open_time) FROM candles WHERE symbol=:sym AND granularity=:gran"
+        ),
+        {"sym": symbol, "gran": granularity},
+    )
     row = res.fetchone()
     results["earliest_time"] = row[0].isoformat() if row[0] else None
     results["latest_time"] = row[1].isoformat() if row[1] else None
 
     # Granularity uniqueness check
-    res = await session.execute(text(
-        "SELECT DISTINCT granularity FROM candles WHERE symbol=:sym"
-    ), {"sym": symbol})
+    res = await session.execute(
+        text("SELECT DISTINCT granularity FROM candles WHERE symbol=:sym"), {"sym": symbol}
+    )
     results["granularities"] = [r[0] for r in res.fetchall()]
 
     return results
@@ -46,10 +50,13 @@ async def get_db_stats(session, symbol, granularity):
 
 async def validate_continuity(session, symbol, granularity, expected_start, expected_end):
     """Check continuity: gaps, expected count, missing count."""
-    res = await session.execute(text(
-        "SELECT open_time FROM candles WHERE symbol=:sym AND granularity=:gran "
-        "ORDER BY open_time"
-    ), {"sym": symbol, "gran": granularity})
+    res = await session.execute(
+        text(
+            "SELECT open_time FROM candles WHERE symbol=:sym AND granularity=:gran "
+            "ORDER BY open_time"
+        ),
+        {"sym": symbol, "gran": granularity},
+    )
     rows = res.fetchall()
     times = [r[0] for r in rows]
 
@@ -57,8 +64,15 @@ async def validate_continuity(session, symbol, granularity, expected_start, expe
         return {"valid": False, "gaps": 0, "total_candles": 0}
 
     gran_map = {
-        "15m": 900, "1H": 3600, "1m": 60, "5m": 300,
-        "30m": 1800, "4H": 14400, "2H": 7200, "1D": 86400, "1W": 604800,
+        "15m": 900,
+        "1H": 3600,
+        "1m": 60,
+        "5m": 300,
+        "30m": 1800,
+        "4H": 14400,
+        "2H": 7200,
+        "1D": 86400,
+        "1W": 604800,
     }
     seconds = gran_map.get(granularity, 900)
 
@@ -68,16 +82,18 @@ async def validate_continuity(session, symbol, granularity, expected_start, expe
     gap_count = 0
     sample_gaps = []
     for i in range(1, len(times)):
-        diff = (times[i] - times[i-1]).total_seconds()
+        diff = (times[i] - times[i - 1]).total_seconds()
         if diff > seconds * 1.5:
             gap_count += 1
             if gap_count <= 10:
-                sample_gaps.append({
-                    "after": times[i-1].isoformat(),
-                    "before": times[i].isoformat(),
-                    "gap_seconds": diff,
-                    "missing_candles": int(diff / seconds) - 1,
-                })
+                sample_gaps.append(
+                    {
+                        "after": times[i - 1].isoformat(),
+                        "before": times[i].isoformat(),
+                        "gap_seconds": diff,
+                        "missing_candles": int(diff / seconds) - 1,
+                    }
+                )
 
     # Duplicate detection
     time_counts = Counter(t.isoformat() for t in times)
@@ -96,12 +112,15 @@ async def validate_continuity(session, symbol, granularity, expected_start, expe
 
 async def compare_sampled_range(session, symbol, granularity, start_time, end_time):
     """Compare DB candles with OKX REST API for a sample range."""
-    res = await session.execute(text(
-        "SELECT open_time, open_price, high, low, close, volume "
-        "FROM candles WHERE symbol=:sym AND granularity=:gran "
-        "AND open_time >= :st AND open_time <= :et "
-        "ORDER BY open_time LIMIT 100"
-    ), {"sym": symbol, "gran": granularity, "st": start_time, "et": end_time})
+    res = await session.execute(
+        text(
+            "SELECT open_time, open_price, high, low, close, volume "
+            "FROM candles WHERE symbol=:sym AND granularity=:gran "
+            "AND open_time >= :st AND open_time <= :et "
+            "ORDER BY open_time LIMIT 100"
+        ),
+        {"sym": symbol, "gran": granularity, "st": start_time, "et": end_time},
+    )
     db_rows = res.fetchall()
 
     async with OKXClient() as client:
@@ -120,27 +139,35 @@ async def compare_sampled_range(session, symbol, granularity, start_time, end_ti
             if key in db_map:
                 db_row = db_map[key]
                 if abs(c.high - db_row[2]) > 0.01 or abs(c.low - db_row[3]) > 0.01:
-                    mismatches.append({
-                        "time": key[0],
-                        "okx_high": c.high, "db_high": db_row[2],
-                        "okx_low": c.low, "db_low": db_row[3],
-                    })
+                    mismatches.append(
+                        {
+                            "time": key[0],
+                            "okx_high": c.high,
+                            "db_high": db_row[2],
+                            "okx_low": c.low,
+                            "db_low": db_row[3],
+                        }
+                    )
 
-        return [{
-            "okx_candles_fetched": len(candles),
-            "db_candles_found": len(db_rows),
-            "total_compared": min(len(candles), len(db_rows)),
-            "mismatches": len(mismatches),
-            "mismatch_details": mismatches[:5],
-            "status": "pass" if len(mismatches) == 0 else "fail",
-        }]
+        return [
+            {
+                "okx_candles_fetched": len(candles),
+                "db_candles_found": len(db_rows),
+                "total_compared": min(len(candles), len(db_rows)),
+                "mismatches": len(mismatches),
+                "mismatch_details": mismatches[:5],
+                "status": "pass" if len(mismatches) == 0 else "fail",
+            }
+        ]
     else:
-        return [{
-            "okx_candles_fetched": len(candles),
-            "db_candles_found": len(db_rows),
-            "status": "skipped",
-            "reason": "No candles at start_time (outside range)",
-        }]
+        return [
+            {
+                "okx_candles_fetched": len(candles),
+                "db_candles_found": len(db_rows),
+                "status": "skipped",
+                "reason": "No candles at start_time (outside range)",
+            }
+        ]
 
 
 async def main():
@@ -234,35 +261,46 @@ async def main():
     for gran in ["15m", "1H"]:
         stats = report.get(f"{gran}_stats", {})
         cont = stats.get("continuity", {})
-        md.extend([
-            f"### {gran} Candles",
-            "| Property | Value |",
-            "|----------|-------|",
-            f"| Total stored | {stats.get('total_count', 'N/A')} |",
-            f"| Expected count | {cont.get('expected_count', 'N/A')} |",
-            f"| Coverage | {cont.get('coverage_pct', 0)}% |",
-            f"| Gaps | {cont.get('gaps', 'N/A')} |",
-            f"| Duplicates | {cont.get('duplicate_count', 'N/A')} |",
-            f"| Earliest | {stats.get('earliest_time', 'N/A')} |",
-            f"| Latest | {stats.get('latest_time', 'N/A')} |",
-            "",
-        ])
+        md.extend(
+            [
+                f"### {gran} Candles",
+                "| Property | Value |",
+                "|----------|-------|",
+                f"| Total stored | {stats.get('total_count', 'N/A')} |",
+                f"| Expected count | {cont.get('expected_count', 'N/A')} |",
+                f"| Coverage | {cont.get('coverage_pct', 0)}% |",
+                f"| Gaps | {cont.get('gaps', 'N/A')} |",
+                f"| Duplicates | {cont.get('duplicate_count', 'N/A')} |",
+                f"| Earliest | {stats.get('earliest_time', 'N/A')} |",
+                f"| Latest | {stats.get('latest_time', 'N/A')} |",
+                "",
+            ]
+        )
 
-    md.extend([
-        "## REST-vs-DB Comparison",
-        "",
-    ])
+    md.extend(
+        [
+            "## REST-vs-DB Comparison",
+            "",
+        ]
+    )
     for comp in comparison_results:
-        md.append(f"- **{comp.get('okx_candles_fetched', 0)} OKX vs {comp.get('db_candles_found', 0)} DB**: {comp.get('status', 'unknown')} (mismatches: {comp.get('mismatches', 0)})")
-    md.extend([
-        "",
-        "## Known Limitations",
-        "",
-    ] + [f"- {limit}" for limit in report["known_limitations"]] + [
-        "",
-        "## Recommended Next Steps",
-        "",
-    ] + [f"- {s}" for s in report["recommended_next_steps"]])
+        md.append(
+            f"- **{comp.get('okx_candles_fetched', 0)} OKX vs {comp.get('db_candles_found', 0)} DB**: {comp.get('status', 'unknown')} (mismatches: {comp.get('mismatches', 0)})"
+        )
+    md.extend(
+        [
+            "",
+            "## Known Limitations",
+            "",
+        ]
+        + [f"- {limit}" for limit in report["known_limitations"]]
+        + [
+            "",
+            "## Recommended Next Steps",
+            "",
+        ]
+        + [f"- {s}" for s in report["recommended_next_steps"]]
+    )
 
     md_path = REPORT_DIR / "data_quality_009B.md"
     md_path.write_text("\n".join(md))
