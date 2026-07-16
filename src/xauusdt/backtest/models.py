@@ -66,6 +66,14 @@ class BacktestTrade:
     fee: float
     slippage_cost: float
     exit_reason: str  # "SL", "TP", "SIGNAL", "EOL"
+    # Exit Model Diagnostics (added for BACKTEST-007)
+    max_mfe: float = 0.0  # max favorable excursion (price)
+    max_mfe_pct: float = 0.0  # max favorable excursion (pct)
+    max_mae: float = 0.0  # max adverse excursion (price)
+    max_mae_pct: float = 0.0  # max adverse excursion (pct)
+    max_r: float = 0.0  # max R multiple reached during trade
+    atr_at_entry: float = 0.0  # ATR value at entry candle
+    sl_distance: float = 0.0  # distance from entry to SL (price)
 
     @property
     def gross_pnl(self) -> float:
@@ -91,6 +99,25 @@ class BacktestPosition:
     # SL/TP triggers (computed from entry_price)
     stop_loss_price: float | None = None
     take_profit_price: float | None = None
+
+    # Exit Model Diagnostics (BACKTEST-007)
+    max_mfe_price: float = 0.0  # best price reached (in favor)
+    max_mae_price: float = 0.0  # worst price reached (against)
+    sl_distance: float = 0.0  # abs(entry - SL) for R-calculation
+
+    def _update_excursions(self, candle: Candle) -> None:
+        """Track MFE and MAE during holding."""
+        if self.side == Side.LONG:
+            # Favorable = higher prices
+            mfe = max(candle.high - self.entry_price, 0.0)
+            mae = max(self.entry_price - candle.low, 0.0)
+        else:
+            # Short: favorable = lower prices
+            mfe = max(self.entry_price - candle.low, 0.0)
+            mae = max(candle.high - self.entry_price, 0.0)
+
+        self.max_mfe_price = max(self.max_mfe_price, mfe)
+        self.max_mae_price = max(self.max_mae_price, mae)
 
     def is_sl_hit(self, candle: Candle) -> bool:
         """Check if SL was hit within candle high/low range."""
