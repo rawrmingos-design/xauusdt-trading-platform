@@ -37,7 +37,7 @@ def calc_ema(values: list[float], period: int) -> list[float | None]:
     for i in range(period, len(values)):
         prev = result[i - 1] if result[i - 1] is not None else sma
         if prev is not None:
-            result[i] = (values[i] - prev) * multiplier + prev * multiplier
+            result[i] = (values[i] - prev) * multiplier + prev
 
     return result
 
