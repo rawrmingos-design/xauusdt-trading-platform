@@ -71,6 +71,10 @@ class BacktestEngine:
 
     def _process_candle(self, candle: Candle, index: int) -> None:
         """Process a single candle: check SL/TP → strategy signal → execute."""
+        # Update MFE/MAE excursions first for this candle
+        if self._position is not None:
+            self._position._update_excursions(candle)
+
         # 1. Check SL/TP first (conservative: SL before TP if both hit)
         if self._position is not None:
             # Check SL
@@ -181,6 +185,19 @@ class BacktestEngine:
         )
         slippage_cost = abs(exit_price - candle.close) * self._position.quantity
 
+        # Exit Model Diagnostics (BACKTEST-007)
+        max_mfe = self._position.max_mfe_price
+        max_mae = self._position.max_mae_price
+        sl_dist = abs(self._position.entry_price - (self._position.stop_loss_price or self._position.entry_price))
+        if sl_dist > 0:
+            max_r = max_mfe / sl_dist
+        else:
+            max_r = 0.0
+
+        max_mfe_pct = (max_mfe / self._position.entry_price) * 100 if self._position.entry_price > 0 else 0.0
+        max_mae_pct = (max_mae / self._position.entry_price) * 100 if self._position.entry_price > 0 else 0.0
+        atr_at_entry = getattr(candle, "_atr_at_entry", 0.0)
+
         trade = BacktestTrade(
             entry_candle_time=self._position.entry_candle_time,
             entry_price=self._position.entry_price,
@@ -193,6 +210,13 @@ class BacktestEngine:
             fee=fee,
             slippage_cost=slippage_cost,
             exit_reason=reason,
+            max_mfe=max_mfe,
+            max_mfe_pct=max_mfe_pct,
+            max_mae=max_mae,
+            max_mae_pct=max_mae_pct,
+            max_r=max_r,
+            atr_at_entry=atr_at_entry,
+            sl_distance=sl_dist,
         )
         self._trades.append(trade)
         self._balance += pnl  # Add PnL to balance
