@@ -76,6 +76,14 @@ class BacktestTrade:
     atr_at_entry: float = 0.0  # ATR value at entry candle
     sl_distance: float = 0.0  # distance from entry to SL (price)
 
+    # Context for diagnostics (PROJECT-BACKTEST-010)
+    context_score: float = 0.0
+    context_adx: float = 0.0
+    context_ema_trend: str = "FLAT"  # "UP", "DOWN", "FLAT"
+    context_structure: str = "NEUTRAL"  # "BULLISH", "BEARISH", "NEUTRAL"
+    context_conflict: bool = False  # True if EMA trend and structure disagree
+    context_swing_recency: int = 0  # candles since last swing point
+
     @property
     def gross_pnl(self) -> float:
         """PnL before fees and slippage."""
@@ -109,6 +117,15 @@ class BacktestPosition:
     # Improved Exit Model (PROJECT-STRATEGY-003)
     partial_tp_price: float | None = None
     is_partial_closed: bool = False
+    partial_tp_ratio: float = 0.5  # fraction closed on partial TP (default 50%)
+
+    # Context for diagnostics (PROJECT-BACKTEST-010)
+    context_score: float = 0.0
+    context_adx: float = 0.0
+    context_ema_trend: str = "FLAT"
+    context_structure: str = "NEUTRAL"
+    context_conflict: bool = False
+    context_swing_recency: int = 0
 
     def _update_excursions(self, candle: Candle) -> None:
         """Track MFE and MAE during holding."""

@@ -242,6 +242,12 @@ class BacktestEngine:
             max_r=max_r,
             atr_at_entry=atr_at_entry,
             sl_distance=sl_dist,
+            context_score=self._position.context_score,
+            context_adx=self._position.context_adx,
+            context_ema_trend=self._position.context_ema_trend,
+            context_structure=self._position.context_structure,
+            context_conflict=self._position.context_conflict,
+            context_swing_recency=self._position.context_swing_recency,
         )
         self._trades.append(trade)
         self._balance += pnl  # Add PnL to balance
