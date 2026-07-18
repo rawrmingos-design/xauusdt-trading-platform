@@ -73,6 +73,38 @@ class ConfluenceBacktestEngine(BacktestEngine):
             else:
                 partial_tp_price = entry_price - calc_sl_dist
 
+        # Calculate Context (PROJECT-BACKTEST-010)
+        buy_score = self._strategy._last_score.buy_score
+        sell_score = self._strategy._last_score.sell_score
+        context_score = buy_score if side == Side.LONG else sell_score
+
+        context_adx = features.adx_14.adx_value if features and features.adx_14.valid else 0.0
+
+        context_ema_trend = "FLAT"
+        if features and features.ema_9.valid and features.ema_21.valid:
+            if features.ema_9.ema_value > features.ema_21.ema_value:
+                context_ema_trend = "UP"
+            elif features.ema_9.ema_value < features.ema_21.ema_value:
+                context_ema_trend = "DOWN"
+
+        context_structure = "NEUTRAL"
+        if features and features.structure.valid:
+            context_structure = features.structure.structure.value
+
+        context_conflict = False
+        if context_ema_trend == "UP" and context_structure == "BEARISH":
+            context_conflict = True
+        elif context_ema_trend == "DOWN" and context_structure == "BULLISH":
+            context_conflict = True
+
+        context_swing_recency = 0
+        if features and features.structure.valid:
+            sh_idx = features.structure.swing_high.index if features.structure.swing_high else 0
+            sl_idx = features.structure.swing_low.index if features.structure.swing_low else 0
+            recent_idx = max(sh_idx, sl_idx)
+            if recent_idx > 0:
+                context_swing_recency = features.index - recent_idx
+
         self._position = BacktestPosition(
             side=side,
             entry_candle_time=candle.open_time.isoformat(),
@@ -81,4 +113,11 @@ class ConfluenceBacktestEngine(BacktestEngine):
             stop_loss_price=sl_price,
             take_profit_price=tp_price,
             partial_tp_price=partial_tp_price,
+            partial_tp_ratio=cfg.partial_tp_ratio,
+            context_score=context_score,
+            context_adx=context_adx,
+            context_ema_trend=context_ema_trend,
+            context_structure=context_structure,
+            context_conflict=context_conflict,
+            context_swing_recency=context_swing_recency,
         )

@@ -64,9 +64,16 @@ class BacktestTrade:
     pnl: float
     pnl_pct: float
     fee: float
-    slippage_cost: float
-    exit_reason: str  # "SL", "TP", "SIGNAL", "EOL", "PARTIAL_TP"
-    is_partial: bool = False  # True if this is a partial exit trade
+    exit_reason: str  # "SL", "TP", "SIGNAL", "EOL", "PARTIAL_TP", "BREAK_EVEN"
+    is_break_even: bool = False # True if this is a break-even SL exit
+    is_partial: bool = False # True if this is a partial exit trade
+    # Context for diagnostics (PROJECT-BACKTEST-010)
+    context_score: float = 0.0
+    context_adx: float = 0.0
+    context_ema_trend: str = "FLAT"
+    context_structure: str = "NEUTRAL"
+    context_conflict: bool = False
+    context_swing_recency: int = 0
     # Exit Model Diagnostics (added for BACKTEST-007)
     max_mfe: float = 0.0  # max favorable excursion (price)
     max_mfe_pct: float = 0.0  # max favorable excursion (pct)

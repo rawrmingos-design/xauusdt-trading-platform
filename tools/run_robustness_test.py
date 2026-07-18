@@ -26,18 +26,18 @@ def run_backtest(cfg: ConfluenceConfig, candles: list[Candle]) -> BacktestResult
 def summarize_trades(trades) -> dict:
     wins = [t for t in trades if t.pnl > 0]
     losses = [t for t in trades if t.pnl <= 0]
-    
+
     full_sl = [t for t in trades if t.exit_reason == "SL"]
     partial_tp = [t for t in trades if t.exit_reason == "PARTIAL_TP"]
     break_even = [t for t in trades if getattr(t, "is_break_even", False) or t.exit_reason == "BREAK_EVEN"]
     final_tp = [t for t in trades if t.exit_reason == "TP"]
-    
+
     avg_win = sum(t.pnl for t in wins) / len(wins) if wins else 0.0
     avg_loss = sum(t.pnl for t in losses) / len(losses) if losses else 0.0
-    
+
     full_exits = [t for t in trades if not t.is_partial]
     avg_r = sum((t.gross_pnl / (t.quantity * t.sl_distance)) for t in full_exits if getattr(t, "sl_distance", 0.0) > 0) / len(full_exits) if full_exits else 0.0
-    
+
     return {
         "trades_count": len(trades),
         "wins": len(wins),
@@ -115,7 +115,7 @@ async def main():
 
     print("\\n--- Robustness Analysis (V1 Base) ---")
     robustness = []
-    
+
     # Grid:
     # Partial TP Ratio: 0.5, 0.7
     # Partial TP RR (Trigger): 1.0, 1.5
@@ -150,7 +150,7 @@ async def main():
     ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     report_dir = Path("docs/reports")
     report_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Save JSON
     with open(report_dir / f"robustness_BACKTEST-009_{ts}.json", "w") as f:
         json.dump({"walk_forward": wf_results, "robustness": robustness}, f, indent=2)
@@ -166,7 +166,7 @@ async def main():
         "| Window | Strategy | Trades | Win Rate | Net PnL | Max DD | Expectancy |",
         "|--------|----------|--------|----------|---------|--------|------------|"
     ]
-    
+
     for name, res in wf_results.items():
         v1 = res["v1"]["metrics"]
         v2 = res["v2"]["metrics"]
@@ -200,7 +200,7 @@ async def main():
 
     with open(report_dir / f"robustness_BACKTEST-009_{ts}.md", "w") as f:
         f.write("\\n".join(md))
-        
+
     print(f"\\nSaved reports to {report_dir}")
 
 if __name__ == "__main__":
