@@ -62,6 +62,8 @@ class ConfluenceConfig:
 
     # Improved Exit Model (PROJECT-STRATEGY-003)
     improved_exit: bool = False  # Set to True to enable partial TP and break-even SL
+    partial_tp_ratio: float = 0.5  # Fraction of position to close on partial TP
+    partial_tp_rr: float = 1.0  # R-multiple target for partial TP and BE trigger
 
     # Sensitivity/Ablation Parameters (defaults match v1 spec)
     swing_lookback: int = 10
