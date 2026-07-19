@@ -1,0 +1,186 @@
+{
+  "metadata": {
+    "dataset": "XAU-USDT-SWAP 15m (90-day)",
+    "candle_count": 8640,
+    "start_time": "2026-04-16T00:00:00+00:00",
+    "end_time": "2026-07-14T23:45:00+00:00",
+    "backtest_config": {
+      "initial_balance": 1000.0,
+      "fee_rate": 0.0005,
+      "slippage_bps": 2.0
+    }
+  },
+  "v1": {
+    "config": {
+      "min_score": 65.0,
+      "min_score_gap": 15.0,
+      "ema_fast_period": 50,
+      "ema_slow_period": 200,
+      "adx_min": 20.0,
+      "atr_min": 0.0,
+      "atr_max": 50.0,
+      "sl_atr_multiplier": 1.5,
+      "risk_reward_ratio": 2.0,
+      "improved_exit": true,
+      "partial_tp_ratio": 0.5,
+      "partial_tp_rr": 1.0,
+      "swing_lookback": 10,
+      "weight_ema": 20.0,
+      "weight_price_ema": 10.0,
+      "weight_adx": 15.0,
+      "weight_structure": 20.0,
+      "weight_swing": 10.0,
+      "weight_atr": 10.0,
+      "weight_candle": 5.0,
+      "adx_rising": false,
+      "ema_slope_alignment": false,
+      "v3_active": false,
+      "v3_reject_toxic_score": false,
+      "v3_toxic_score_min": 75.0,
+      "v3_toxic_score_max": 84.0,
+      "v3_min_adx": 15.0,
+      "v3_max_adx": 40.0,
+      "v3_long_bias_penalty": 0.0,
+      "version": "v1_improved_exit"
+    },
+    "metrics": {
+      "trade_count": 1053,
+      "win_rate": 0.5356125356125356,
+      "profit_factor": 1.0666242351065398,
+      "net_pnl": -507.30045970551964,
+      "max_drawdown_pct": 0.5073004597055196,
+      "expectancy_r": 0.0006812408399836393,
+      "long_breakdown": {
+        "count": 447,
+        "win_rate": 0.4541387024608501,
+        "expectancy_r": -0.07801634165773204
+      },
+      "short_breakdown": {
+        "count": 606,
+        "win_rate": 0.5957095709570958,
+        "expectancy_r": 0.05873044773186303
+      }
+    }
+  },
+  "v2": {
+    "config": {
+      "min_score": 65.0,
+      "min_score_gap": 15.0,
+      "ema_fast_period": 9,
+      "ema_slow_period": 21,
+      "adx_min": 25.0,
+      "atr_min": 0.0,
+      "atr_max": 50.0,
+      "sl_atr_multiplier": 1.5,
+      "risk_reward_ratio": 2.5,
+      "improved_exit": true,
+      "partial_tp_ratio": 0.5,
+      "partial_tp_rr": 1.0,
+      "swing_lookback": 10,
+      "weight_ema": 20.0,
+      "weight_price_ema": 10.0,
+      "weight_adx": 15.0,
+      "weight_structure": 20.0,
+      "weight_swing": 10.0,
+      "weight_atr": 10.0,
+      "weight_candle": 5.0,
+      "adx_rising": true,
+      "ema_slope_alignment": true,
+      "v3_active": false,
+      "v3_reject_toxic_score": false,
+      "v3_toxic_score_min": 75.0,
+      "v3_toxic_score_max": 84.0,
+      "v3_min_adx": 15.0,
+      "v3_max_adx": 40.0,
+      "v3_long_bias_penalty": 0.0,
+      "version": "v2_improved_exit"
+    },
+    "metrics": {
+      "trade_count": 766,
+      "win_rate": 0.5078328981723238,
+      "profit_factor": 0.8607611983109725,
+      "net_pnl": -477.5898764094276,
+      "max_drawdown_pct": 0.4784628804387402,
+      "expectancy_r": -0.03392182831027692,
+      "long_breakdown": {
+        "count": 368,
+        "win_rate": 0.47554347826086957,
+        "expectancy_r": -0.04760266793991644
+      },
+      "short_breakdown": {
+        "count": 398,
+        "win_rate": 0.5376884422110553,
+        "expectancy_r": -0.02127220774819817
+      }
+    }
+  },
+  "v3": {
+    "config": {
+      "min_score": 65.0,
+      "min_score_gap": 15.0,
+      "ema_fast_period": 50,
+      "ema_slow_period": 200,
+      "adx_min": 20.0,
+      "atr_min": 0.0,
+      "atr_max": 50.0,
+      "sl_atr_multiplier": 1.5,
+      "risk_reward_ratio": 2.5,
+      "improved_exit": true,
+      "partial_tp_ratio": 0.5,
+      "partial_tp_rr": 1.0,
+      "swing_lookback": 10,
+      "weight_ema": 20.0,
+      "weight_price_ema": 10.0,
+      "weight_adx": 15.0,
+      "weight_structure": 20.0,
+      "weight_swing": 10.0,
+      "weight_atr": 10.0,
+      "weight_candle": 5.0,
+      "adx_rising": true,
+      "ema_slope_alignment": true,
+      "v3_active": true,
+      "v3_reject_toxic_score": true,
+      "v3_toxic_score_min": 75.0,
+      "v3_toxic_score_max": 84.0,
+      "v3_min_adx": 15.0,
+      "v3_max_adx": 40.0,
+      "v3_long_bias_penalty": 0.0,
+      "version": "v3_experimental"
+    },
+    "metrics": {
+      "trade_count": 494,
+      "win_rate": 0.5222672064777328,
+      "profit_factor": 1.0713023447999868,
+      "net_pnl": -295.72222949034904,
+      "max_drawdown_pct": 0.299159211844879,
+      "expectancy_r": 0.019310588071310333,
+      "long_breakdown": {
+        "count": 225,
+        "win_rate": 0.4711111111111111,
+        "expectancy_r": -0.06224587059594488
+      },
+      "short_breakdown": {
+        "count": 269,
+        "win_rate": 0.5650557620817844,
+        "expectancy_r": 0.08752695684503682
+      }
+    },
+    "discard_analysis_from_v2": {
+      "toxic_zone": {
+        "count": 333,
+        "winners": 161,
+        "losers": 172
+      },
+      "adx_min": {
+        "count": 33,
+        "winners": 13,
+        "losers": 20
+      },
+      "adx_max": {
+        "count": 59,
+        "winners": 30,
+        "losers": 29
+      }
+    }
+  }
+}
