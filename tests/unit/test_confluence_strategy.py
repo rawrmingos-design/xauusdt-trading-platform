@@ -15,7 +15,7 @@ Covers:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -42,7 +42,7 @@ def bullish_candle_sequence() -> list[Candle]:
     base_ts = datetime(2026, 1, 1, tzinfo=UTC)
     return [
         Candle(
-            open_time=base_ts.timestamp() + i * 900,
+            open_time=base_ts + timedelta(seconds=i * 900),
             open=100.0 + i * 0.5,
             high=101.0 + i * 0.5,
             low=99.5 + i * 0.4,
@@ -61,7 +61,7 @@ def bearish_candle_sequence() -> list[Candle]:
     base_ts = datetime(2026, 1, 1, tzinfo=UTC)
     return [
         Candle(
-            open_time=base_ts.timestamp() + i * 900,
+            open_time=base_ts + timedelta(seconds=i * 900),
             open=100.0 - i * 0.5,
             high=100.5 - i * 0.4,
             low=99.0 - i * 0.5,
@@ -80,7 +80,7 @@ def ranging_candle_sequence() -> list[Candle]:
     base_ts = datetime(2026, 1, 1, tzinfo=UTC)
     return [
         Candle(
-            open_time=base_ts.timestamp() + i * 900,
+            open_time=base_ts + timedelta(seconds=i * 900),
             open=100.0 + (i % 3) * 0.2,
             high=101.0 + (i % 3) * 0.2,
             low=99.0 + (i % 3) * 0.2,
@@ -228,7 +228,7 @@ class TestWeakTrend:
         # Process a few candles
         for i in range(5):
             candle = Candle(
-                open_time=(i + 1) * 900,
+                open_time=datetime(2026, 1, 1, tzinfo=UTC) + timedelta(seconds=(i + 1) * 900),
                 open=100.0,
                 high=101.0,
                 low=99.5,
@@ -252,7 +252,7 @@ class TestInsufficientHistory:
         strategy = ConfluenceStrategy()
         for i in range(10):  # Less than warmup period
             candle = Candle(
-                open_time=(i + 1) * 900,
+                open_time=datetime(2026, 1, 1, tzinfo=UTC) + timedelta(seconds=(i + 1) * 900),
                 open=100.0 + i,
                 high=101.0 + i,
                 low=99.0 + i,
@@ -278,7 +278,7 @@ class TestThresholds:
         # Process bullish candles
         for i in range(50):
             candle = Candle(
-                open_time=(i + 1) * 900,
+                open_time=datetime(2026, 1, 1, tzinfo=UTC) + timedelta(seconds=(i + 1) * 900),
                 open=100.0 + i * 0.3,
                 high=101.0 + i * 0.3,
                 low=99.5 + i * 0.2,
@@ -299,7 +299,7 @@ class TestThresholds:
         # Process candles with mixed signals
         for i in range(50):
             candle = Candle(
-                open_time=(i + 1) * 900,
+                open_time=datetime(2026, 1, 1, tzinfo=UTC) + timedelta(seconds=(i + 1) * 900),
                 open=100.0,
                 high=100.5 if i % 2 == 0 else 101.0,
                 low=99.5 if i % 2 == 0 else 99.0,
@@ -345,7 +345,7 @@ class TestDeterminism:
 
         for i in range(50):
             candle = Candle(
-                open_time=(i + 1) * 900,
+                open_time=datetime(2026, 1, 1, tzinfo=UTC) + timedelta(seconds=(i + 1) * 900),
                 open=100.0 + i * 0.5,
                 high=101.0 + i * 0.5,
                 low=99.5 + i * 0.4,

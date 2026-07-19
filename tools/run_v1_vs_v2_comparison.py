@@ -31,7 +31,12 @@ def get_trade_stats(trades):
     avg_win = sum(t.pnl for t in wins) / len(wins) if wins else 0.0
     avg_loss = sum(t.pnl for t in losses) / len(losses) if losses else 0.0
 
-    durations = [(datetime.fromisoformat(t.exit_candle_time) - datetime.fromisoformat(t.entry_candle_time)).total_seconds() for t in trades]
+    durations = [
+        (
+            datetime.fromisoformat(t.exit_candle_time) - datetime.fromisoformat(t.entry_candle_time)
+        ).total_seconds()
+        for t in trades
+    ]
     avg_duration_h = sum(durations) / len(durations) / 3600
 
     return {
@@ -45,6 +50,7 @@ def get_trade_stats(trades):
         "avg_loss": avg_loss,
         "avg_duration_h": avg_duration_h,
     }
+
 
 async def main() -> None:
     db_url = "postgresql+asyncpg://xauusdt:xauusdt@localhost:5432/xauusdt"
@@ -123,10 +129,9 @@ async def main() -> None:
     # Was it a quality improvement or just less trades?
     # Was it a quality improvement or just less trades?
     rejected_wr = (rejected_wins / len(rejected_trades) * 100) if rejected_trades else 0
-    rejected_v2_wr = 0.0
     for t in rejected_trades:
         # Check if this rejected trade would have been a win if taken
-        pass # already calculated
+        pass  # already calculated
 
     # V2 generated a different trade schedule, not just filtering V1.
     v2_unique_rejected = len(rejected_trades)
@@ -155,7 +160,7 @@ async def main() -> None:
             "total_rejected": len(rejected_trades),
             "rejected_wins": rejected_wins,
             "rejected_losses": rejected_losses,
-        }
+        },
     }
     with open(report_dir / f"comparison_BACKTEST-006_{timestamp}.json", "w") as f:
         json.dump(json_data, f, indent=2)
@@ -168,24 +173,40 @@ async def main() -> None:
         f.write("## Performance Metrics\n\n")
         f.write("| Metric | V1 (Baseline) | V2 (Quality Filters) | Diff |\n")
         f.write("|---|---|---|---|\n")
-        f.write(f"| Total Trades | {v1_m.total_trades} | {v2_m.total_trades} | {v2_m.total_trades - v1_m.total_trades} |\n")
-        f.write(f"| Win Rate | {v1_m.win_rate*100:.1f}% | {v2_m.win_rate*100:.1f}% | {(v2_m.win_rate - v1_m.win_rate)*100:+.1f}% |\n")
-        f.write(f"| Net PnL | {v1_m.net_pnl:.2f} | {v2_m.net_pnl:.2f} | {v2_m.net_pnl - v1_m.net_pnl:+.2f} |\n")
-        f.write(f"| Profit Factor | {v1_m.profit_factor:.2f} | {v2_m.profit_factor:.2f} | {v2_m.profit_factor - v1_m.profit_factor:+.2f} |\n")
-        f.write(f"| Max Drawdown | {v1_m.max_drawdown_pct*100:.1f}% | {v2_m.max_drawdown_pct*100:.1f}% | {(v2_m.max_drawdown_pct - v1_m.max_drawdown_pct)*100:+.1f}% |\n")
-        f.write(f"| Expectancy | {v1_m.expectancy:.2f} | {v2_m.expectancy:.2f} | {v2_m.expectancy - v1_m.expectancy:+.2f} |\n\n")
+        f.write(
+            f"| Total Trades | {v1_m.total_trades} | {v2_m.total_trades} | {v2_m.total_trades - v1_m.total_trades} |\n"
+        )
+        f.write(
+            f"| Win Rate | {v1_m.win_rate * 100:.1f}% | {v2_m.win_rate * 100:.1f}% | {(v2_m.win_rate - v1_m.win_rate) * 100:+.1f}% |\n"
+        )
+        f.write(
+            f"| Net PnL | {v1_m.net_pnl:.2f} | {v2_m.net_pnl:.2f} | {v2_m.net_pnl - v1_m.net_pnl:+.2f} |\n"
+        )
+        f.write(
+            f"| Profit Factor | {v1_m.profit_factor:.2f} | {v2_m.profit_factor:.2f} | {v2_m.profit_factor - v1_m.profit_factor:+.2f} |\n"
+        )
+        f.write(
+            f"| Max Drawdown | {v1_m.max_drawdown_pct * 100:.1f}% | {v2_m.max_drawdown_pct * 100:.1f}% | {(v2_m.max_drawdown_pct - v1_m.max_drawdown_pct) * 100:+.1f}% |\n"
+        )
+        f.write(
+            f"| Expectancy | {v1_m.expectancy:.2f} | {v2_m.expectancy:.2f} | {v2_m.expectancy - v1_m.expectancy:+.2f} |\n\n"
+        )
 
         f.write("## Trade Analysis\n\n")
         f.write("| Metric | V1 | V2 |\n")
         f.write("|---|---|---|\n")
-        f.write(f"| Longs / Shorts | {v1_stats['longs']} / {v1_stats['shorts']} | {v2_stats['longs']} / {v2_stats['shorts']} |\n")
+        f.write(
+            f"| Longs / Shorts | {v1_stats['longs']} / {v1_stats['shorts']} | {v2_stats['longs']} / {v2_stats['shorts']} |\n"
+        )
         f.write(f"| SL Hits | {v1_stats['sl_hits']} | {v2_stats['sl_hits']} |\n")
         f.write(f"| TP Hits | {v1_stats['tp_hits']} | {v2_stats['tp_hits']} |\n")
         f.write(f"| Signal Closes | {v1_stats['signal_closes']} | {v2_stats['signal_closes']} |\n")
         f.write(f"| EOL Closes | {v1_stats['eol_closes']} | {v2_stats['eol_closes']} |\n")
         f.write(f"| Avg Win | {v1_stats['avg_win']:.2f} | {v2_stats['avg_win']:.2f} |\n")
         f.write(f"| Avg Loss | {v1_stats['avg_loss']:.2f} | {v2_stats['avg_loss']:.2f} |\n")
-        f.write(f"| Avg Duration | {v1_stats['avg_duration_h']:.1f}h | {v2_stats['avg_duration_h']:.1f}h |\n\n")
+        f.write(
+            f"| Avg Duration | {v1_stats['avg_duration_h']:.1f}h | {v2_stats['avg_duration_h']:.1f}h |\n\n"
+        )
 
         f.write("## Rejection Analysis\n\n")
         f.write(f"{quality_verdict}\n\n")
@@ -197,9 +218,13 @@ async def main() -> None:
 
         f.write("\n### Recommended Next Steps\n")
         if v2_m.net_pnl > v1_m.net_pnl and v2_m.win_rate > v1_m.win_rate:
-            f.write("- **PROJECT-BACKTEST-007**: Run Walk-Forward testing for V2 to prove robustness.\n")
+            f.write(
+                "- **PROJECT-BACKTEST-007**: Run Walk-Forward testing for V2 to prove robustness.\n"
+            )
         else:
-            f.write("- **PROJECT-BACKTEST-007**: V2 still has negative expectancy. We must analyze the Exit Model (SL/TP) via MFE/MAE analysis. The entry logic might be fine, but the exit rules are burning capital to slippage/fees.\n")
+            f.write(
+                "- **PROJECT-BACKTEST-007**: V2 still has negative expectancy. We must analyze the Exit Model (SL/TP) via MFE/MAE analysis. The entry logic might be fine, but the exit rules are burning capital to slippage/fees.\n"
+            )
 
     print("\nMarkdown report: docs/reports/comparison_BACKTEST-006.md")
 

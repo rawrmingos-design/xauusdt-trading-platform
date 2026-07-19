@@ -29,7 +29,9 @@ def summarize_trades(trades) -> dict:
 
     full_sl = [t for t in trades if t.exit_reason == "SL"]
     partial_tp = [t for t in trades if t.exit_reason == "PARTIAL_TP"]
-    break_even = [t for t in trades if getattr(t, "is_break_even", False) or t.exit_reason == "BREAK_EVEN"]
+    break_even = [
+        t for t in trades if getattr(t, "is_break_even", False) or t.exit_reason == "BREAK_EVEN"
+    ]
     final_tp = [t for t in trades if t.exit_reason == "TP"]
     signal = [t for t in trades if t.exit_reason == "SIGNAL"]
     eol = [t for t in trades if t.exit_reason == "EOL"]
@@ -38,7 +40,16 @@ def summarize_trades(trades) -> dict:
     avg_loss = sum(t.pnl for t in losses) / len(losses) if losses else 0.0
 
     full_exits = [t for t in trades if not t.is_partial]
-    avg_r = sum((t.gross_pnl / (t.quantity * t.sl_distance)) for t in full_exits if getattr(t, "sl_distance", 0.0) > 0) / len(full_exits) if full_exits else 0.0
+    avg_r = (
+        sum(
+            (t.gross_pnl / (t.quantity * t.sl_distance))
+            for t in full_exits
+            if getattr(t, "sl_distance", 0.0) > 0
+        )
+        / len(full_exits)
+        if full_exits
+        else 0.0
+    )
 
     return {
         "trades_count": len(trades),
@@ -94,10 +105,44 @@ async def main():
     print(f"Loaded {len(candles)} candles.")
 
     configs = {
-        "V1_Old": ConfluenceConfig(version="v1_old", ema_fast_period=50, ema_slow_period=200, risk_reward_ratio=2.0, sl_atr_multiplier=1.5, improved_exit=False, min_score=65.0),
-        "V1_Improved": ConfluenceConfig(version="v1_new", ema_fast_period=50, ema_slow_period=200, risk_reward_ratio=2.0, sl_atr_multiplier=2.0, improved_exit=True, min_score=65.0),
-        "V2_Old": ConfluenceConfig(version="v2_old", adx_min=25.0, adx_rising=True, ema_slope_alignment=True, risk_reward_ratio=2.5, sl_atr_multiplier=1.5, improved_exit=False, min_score=65.0),
-        "V2_Improved": ConfluenceConfig(version="v2_new", adx_min=25.0, adx_rising=True, ema_slope_alignment=True, risk_reward_ratio=2.5, sl_atr_multiplier=2.5, improved_exit=True, min_score=65.0),
+        "V1_Old": ConfluenceConfig(
+            version="v1_old",
+            ema_fast_period=50,
+            ema_slow_period=200,
+            risk_reward_ratio=2.0,
+            sl_atr_multiplier=1.5,
+            improved_exit=False,
+            min_score=65.0,
+        ),
+        "V1_Improved": ConfluenceConfig(
+            version="v1_new",
+            ema_fast_period=50,
+            ema_slow_period=200,
+            risk_reward_ratio=2.0,
+            sl_atr_multiplier=2.0,
+            improved_exit=True,
+            min_score=65.0,
+        ),
+        "V2_Old": ConfluenceConfig(
+            version="v2_old",
+            adx_min=25.0,
+            adx_rising=True,
+            ema_slope_alignment=True,
+            risk_reward_ratio=2.5,
+            sl_atr_multiplier=1.5,
+            improved_exit=False,
+            min_score=65.0,
+        ),
+        "V2_Improved": ConfluenceConfig(
+            version="v2_new",
+            adx_min=25.0,
+            adx_rising=True,
+            ema_slope_alignment=True,
+            risk_reward_ratio=2.5,
+            sl_atr_multiplier=2.5,
+            improved_exit=True,
+            min_score=65.0,
+        ),
     }
 
     results = {}
@@ -106,11 +151,8 @@ async def main():
         print(f"Running {name}...")
         res = run_backtest(cfg, candles)
         results[name] = res.to_dict()
-        summaries[name] = {
-            "metrics": res.metrics.to_dict(),
-            "exits": summarize_trades(res.trades)
-        }
-        print(f"  PnL: {res.metrics.net_pnl:.2f}, WR: {res.metrics.win_rate*100:.1f}%")
+        summaries[name] = {"metrics": res.metrics.to_dict(), "exits": summarize_trades(res.trades)}
+        print(f"  PnL: {res.metrics.net_pnl:.2f}, WR: {res.metrics.win_rate * 100:.1f}%")
 
     ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     report_dir = Path("docs/reports")
@@ -118,7 +160,12 @@ async def main():
 
     # Save JSON
     with open(report_dir / f"comparison_BACKTEST-008_{ts}.json", "w") as f:
-        json.dump({"configs": {k: v.__dict__ for k, v in configs.items()}, "summaries": summaries}, f, indent=2, default=str)
+        json.dump(
+            {"configs": {k: v.__dict__ for k, v in configs.items()}, "summaries": summaries},
+            f,
+            indent=2,
+            default=str,
+        )
 
     # Save Markdown
     md_lines = [
@@ -129,30 +176,37 @@ async def main():
         "## Summary Metrics",
         "",
         "| Variant | Trades | Win Rate | Net PnL | Profit Factor | Max DD | Expectancy | Avg Realized R | Avg Win | Avg Loss |",
-        "|---------|--------|----------|---------|---------------|--------|------------|----------------|---------|----------|"
+        "|---------|--------|----------|---------|---------------|--------|------------|----------------|---------|----------|",
     ]
 
     for name, s in summaries.items():
         m = s["metrics"]
         e = s["exits"]
-        md_lines.append(f"| {name} | {m['total_trades']} | {m['win_rate']*100:.1f}% | ${m['net_pnl']:,.2f} | {m['profit_factor']:.2f} | {m['max_drawdown_pct']:.2f}% | ${m['expectancy']:.2f} | {e['avg_realized_r']:.2f}R | ${e['avg_win']:.2f} | ${e['avg_loss']:.2f} |")
+        md_lines.append(
+            f"| {name} | {m['total_trades']} | {m['win_rate'] * 100:.1f}% | ${m['net_pnl']:,.2f} | {m['profit_factor']:.2f} | {m['max_drawdown_pct']:.2f}% | ${m['expectancy']:.2f} | {e['avg_realized_r']:.2f}R | ${e['avg_win']:.2f} | ${e['avg_loss']:.2f} |"
+        )
 
-    md_lines.extend([
-        "",
-        "## Exit Breakdown",
-        "",
-        "| Variant | Full SL | Partial TP | Break-Even SL | Final TP | Signal/EOL |",
-        "|---------|---------|------------|---------------|----------|------------|"
-    ])
+    md_lines.extend(
+        [
+            "",
+            "## Exit Breakdown",
+            "",
+            "| Variant | Full SL | Partial TP | Break-Even SL | Final TP | Signal/EOL |",
+            "|---------|---------|------------|---------------|----------|------------|",
+        ]
+    )
 
     for name, s in summaries.items():
         e = s["exits"]
-        md_lines.append(f"| {name} | {e['full_sl']} | {e['partial_tp']} | {e['break_even']} | {e['final_tp']} | {e['signal'] + e['eol']} |")
+        md_lines.append(
+            f"| {name} | {e['full_sl']} | {e['partial_tp']} | {e['break_even']} | {e['final_tp']} | {e['signal'] + e['eol']} |"
+        )
 
     with open(report_dir / f"comparison_BACKTEST-008_{ts}.md", "w") as f:
         f.write("\\n".join(md_lines) + "\\n")
 
     print(f"\\nSaved reports to {report_dir}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

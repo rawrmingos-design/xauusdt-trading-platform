@@ -199,27 +199,41 @@ class BacktestEngine:
         # Exit Model Diagnostics (BACKTEST-007)
         max_mfe = self._position.max_mfe_price
         max_mae = self._position.max_mae_price
-        sl_dist = abs(self._position.entry_price - (self._position.stop_loss_price or self._position.entry_price))
+        sl_dist = abs(
+            self._position.entry_price
+            - (self._position.stop_loss_price or self._position.entry_price)
+        )
         if sl_dist > 0:
             max_r = max_mfe / sl_dist
         else:
             max_r = 0.0
 
-        max_mfe_pct = (max_mfe / self._position.entry_price) * 100 if self._position.entry_price > 0 else 0.0
-        max_mae_pct = (max_mae / self._position.entry_price) * 100 if self._position.entry_price > 0 else 0.0
+        max_mfe_pct = (
+            (max_mfe / self._position.entry_price) * 100 if self._position.entry_price > 0 else 0.0
+        )
+        max_mae_pct = (
+            (max_mae / self._position.entry_price) * 100 if self._position.entry_price > 0 else 0.0
+        )
         atr_at_entry = getattr(candle, "_atr_at_entry", 0.0)
 
         # Exit Model Diagnostics (BACKTEST-007)
         max_mfe = self._position.max_mfe_price
         max_mae = self._position.max_mae_price
-        sl_dist = abs(self._position.entry_price - (self._position.stop_loss_price or self._position.entry_price))
+        sl_dist = abs(
+            self._position.entry_price
+            - (self._position.stop_loss_price or self._position.entry_price)
+        )
         if sl_dist > 0:
             max_r = max_mfe / sl_dist
         else:
             max_r = 0.0
 
-        max_mfe_pct = (max_mfe / self._position.entry_price) * 100 if self._position.entry_price > 0 else 0.0
-        max_mae_pct = (max_mae / self._position.entry_price) * 100 if self._position.entry_price > 0 else 0.0
+        max_mfe_pct = (
+            (max_mfe / self._position.entry_price) * 100 if self._position.entry_price > 0 else 0.0
+        )
+        max_mae_pct = (
+            (max_mae / self._position.entry_price) * 100 if self._position.entry_price > 0 else 0.0
+        )
         atr_at_entry = getattr(candle, "_atr_at_entry", 0.0)
 
         trade = BacktestTrade(

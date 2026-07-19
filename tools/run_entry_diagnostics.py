@@ -107,8 +107,27 @@ async def main():
     base_candles = [c for c in candles if start_dt <= c.open_time <= end_dt]
     print(f"Loaded {len(base_candles)} candles.")
 
-    v1_cfg = ConfluenceConfig(version="v1_diag", ema_fast_period=50, ema_slow_period=200, risk_reward_ratio=2.0, sl_atr_multiplier=2.0, min_score=65.0, improved_exit=True)
-    v2_cfg = ConfluenceConfig(version="v2_diag", ema_fast_period=50, ema_slow_period=200, adx_min=25.0, adx_rising=True, ema_slope_alignment=True, risk_reward_ratio=2.5, sl_atr_multiplier=2.5, min_score=65.0, improved_exit=True)
+    v1_cfg = ConfluenceConfig(
+        version="v1_diag",
+        ema_fast_period=50,
+        ema_slow_period=200,
+        risk_reward_ratio=2.0,
+        sl_atr_multiplier=2.0,
+        min_score=65.0,
+        improved_exit=True,
+    )
+    v2_cfg = ConfluenceConfig(
+        version="v2_diag",
+        ema_fast_period=50,
+        ema_slow_period=200,
+        adx_min=25.0,
+        adx_rising=True,
+        ema_slope_alignment=True,
+        risk_reward_ratio=2.5,
+        sl_atr_multiplier=2.5,
+        min_score=65.0,
+        improved_exit=True,
+    )
 
     v1_res = run_backtest(v1_cfg, base_candles)
     v2_res = run_backtest(v2_cfg, base_candles)
@@ -155,14 +174,19 @@ async def main():
     print("\n=== V1 Score Buckets ===")
     for k in sorted(v1_diag["by_score"]):
         s = v1_diag["by_score"][k]
-        print(f"Score {k}-{k+4}: {s['trades']} trades, PnL ${s['net_pnl']:.2f}, WR {s['win_rate']*100:.1f}%")
+        print(
+            f"Score {k}-{k + 4}: {s['trades']} trades, PnL ${s['net_pnl']:.2f}, WR {s['win_rate'] * 100:.1f}%"
+        )
 
     print("\n=== V2 Score Buckets ===")
     for k in sorted(v2_diag["by_score"]):
         s = v2_diag["by_score"][k]
-        print(f"Score {k}-{k+4}: {s['trades']} trades, PnL ${s['net_pnl']:.2f}, WR {s['win_rate']*100:.1f}%")
+        print(
+            f"Score {k}-{k + 4}: {s['trades']} trades, PnL ${s['net_pnl']:.2f}, WR {s['win_rate'] * 100:.1f}%"
+        )
 
     print(f"\nSaved diagnostics to {report_dir}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -53,7 +53,6 @@ def _analyze(trades: list[BacktestTrade]) -> dict:
         return {}
 
     wins = [t for t in trades if t.pnl > 0]
-    losses = [t for t in trades if t.pnl <= 0]
     sl_hits = [t for t in trades if t.exit_reason == "SL"]
     tp_hits = [t for t in trades if t.exit_reason == "TP"]
     sig_closes = [t for t in trades if t.exit_reason == "SIGNAL"]
@@ -140,12 +139,14 @@ async def main() -> None:
         analysis = _analyze(trades)
         key = f"RR={cfg.risk_reward_ratio}/ATR={cfg.sl_atr_multiplier}"
         results_v1[key] = {**analysis, "config": cfg.to_dict()}
-        print(f"  {key}: {analysis.get('total_trades',0)} trades, "
-              f"WR={analysis.get('win_rate',0)*100:.1f}%, "
-              f"SL%={analysis.get('sl_hit_rate',0)*100:.1f}%, "
-              f"TP%={analysis.get('tp_hit_rate',0)*100:.1f}%, "
-              f"MFE_avg={analysis.get('avg_mfe_r',0):.2f}R, "
-              f"PnL={analysis.get('net_pnl',0):.2f}")
+        print(
+            f"  {key}: {analysis.get('total_trades', 0)} trades, "
+            f"WR={analysis.get('win_rate', 0) * 100:.1f}%, "
+            f"SL%={analysis.get('sl_hit_rate', 0) * 100:.1f}%, "
+            f"TP%={analysis.get('tp_hit_rate', 0) * 100:.1f}%, "
+            f"MFE_avg={analysis.get('avg_mfe_r', 0):.2f}R, "
+            f"PnL={analysis.get('net_pnl', 0):.2f}"
+        )
 
     print("\n--- V2 EXIT VARIANTS ---")
     for cfg in V2_CONFIGS:
@@ -153,12 +154,14 @@ async def main() -> None:
         analysis = _analyze(trades)
         key = f"RR={cfg.risk_reward_ratio}/ATR={cfg.sl_atr_multiplier}"
         results_v2[key] = {**analysis, "config": cfg.to_dict()}
-        print(f"  {key}: {analysis.get('total_trades',0)} trades, "
-              f"WR={analysis.get('win_rate',0)*100:.1f}%, "
-              f"SL%={analysis.get('sl_hit_rate',0)*100:.1f}%, "
-              f"TP%={analysis.get('tp_hit_rate',0)*100:.1f}%, "
-              f"MFE_avg={analysis.get('avg_mfe_r',0):.2f}R, "
-              f"PnL={analysis.get('net_pnl',0):.2f}")
+        print(
+            f"  {key}: {analysis.get('total_trades', 0)} trades, "
+            f"WR={analysis.get('win_rate', 0) * 100:.1f}%, "
+            f"SL%={analysis.get('sl_hit_rate', 0) * 100:.1f}%, "
+            f"TP%={analysis.get('tp_hit_rate', 0) * 100:.1f}%, "
+            f"MFE_avg={analysis.get('avg_mfe_r', 0):.2f}R, "
+            f"PnL={analysis.get('net_pnl', 0):.2f}"
+        )
 
     # Save JSON
     report_dir = Path("docs/reports")
@@ -180,29 +183,39 @@ def _generate_md(v1: dict, v2: dict, report_dir: Path, ts: str) -> None:
         f.write("**Dataset**: XAU-USDT-SWAP 15m (90 days)\n\n")
 
         f.write("## SUPERSEDED NOTICE\n\n")
-        f.write("Pre-PR #25 backtest reports (including BACKTEST-004 and BACKTEST-006 baseline) **do not** reflect real exit behavior because ATR-based SL/TP were not active. All exit analysis here uses the corrected engine from PR #25.\n\n")
+        f.write(
+            "Pre-PR #25 backtest reports (including BACKTEST-004 and BACKTEST-006 baseline) **do not** reflect real exit behavior because ATR-based SL/TP were not active. All exit analysis here uses the corrected engine from PR #25.\n\n"
+        )
 
         f.write("## V1 Baseline Comparison (ATR Stop vs RR)\n\n")
-        f.write("| Exit Config | Trades | Win Rate | SL% | TP% | Signal% | Avg MFE | Net PnL | Max MFE | Avg MAE | Stopped <1R | Reached 1R | Reached 2R |\n")
+        f.write(
+            "| Exit Config | Trades | Win Rate | SL% | TP% | Signal% | Avg MFE | Net PnL | Max MFE | Avg MAE | Stopped <1R | Reached 1R | Reached 2R |\n"
+        )
         f.write("|---|---|---|---|---|---|---|---|---|---|---|---|---|\n")
         for key, data in v1.items():
-            f.write(f"| {key} | {data['total_trades']} | {data['win_rate']*100:.1f}% | "
-                    f"{data['sl_hit_rate']*100:.1f}% | {data['tp_hit_rate']*100:.1f}% | "
-                    f"{data['sig_close_rate']*100:.1f}% | {data['avg_mfe_r']:.2f}R | "
-                    f"{data['net_pnl']:.2f} | {data['max_mfe_r']:.2f}R | "
-                    f"{data['avg_mae_r']:.2f}R | {data['stopped_before_1r_pct']:.1f}% | "
-                    f"{data['reached_1r_pct']:.1f}% | {data['reached_2r_pct']:.1f}% |\n")
+            f.write(
+                f"| {key} | {data['total_trades']} | {data['win_rate'] * 100:.1f}% | "
+                f"{data['sl_hit_rate'] * 100:.1f}% | {data['tp_hit_rate'] * 100:.1f}% | "
+                f"{data['sig_close_rate'] * 100:.1f}% | {data['avg_mfe_r']:.2f}R | "
+                f"{data['net_pnl']:.2f} | {data['max_mfe_r']:.2f}R | "
+                f"{data['avg_mae_r']:.2f}R | {data['stopped_before_1r_pct']:.1f}% | "
+                f"{data['reached_1r_pct']:.1f}% | {data['reached_2r_pct']:.1f}% |\n"
+            )
 
         f.write("\n## V2 Candidate Comparison (ATR Stop vs RR)\n\n")
-        f.write("| Exit Config | Trades | Win Rate | SL% | TP% | Signal% | Avg MFE | Net PnL | Max MFE | Avg MAE | Stopped <1R | Reached 1R | Reached 2R |\n")
+        f.write(
+            "| Exit Config | Trades | Win Rate | SL% | TP% | Signal% | Avg MFE | Net PnL | Max MFE | Avg MAE | Stopped <1R | Reached 1R | Reached 2R |\n"
+        )
         f.write("|---|---|---|---|---|---|---|---|---|---|---|---|---|\n")
         for key, data in v2.items():
-            f.write(f"| {key} | {data['total_trades']} | {data['win_rate']*100:.1f}% | "
-                    f"{data['sl_hit_rate']*100:.1f}% | {data['tp_hit_rate']*100:.1f}% | "
-                    f"{data['sig_close_rate']*100:.1f}% | {data['avg_mfe_r']:.2f}R | "
-                    f"{data['net_pnl']:.2f} | {data['max_mfe_r']:.2f}R | "
-                    f"{data['avg_mae_r']:.2f}R | {data['stopped_before_1r_pct']:.1f}% | "
-                    f"{data['reached_1r_pct']:.1f}% | {data['reached_2r_pct']:.1f}% |\n")
+            f.write(
+                f"| {key} | {data['total_trades']} | {data['win_rate'] * 100:.1f}% | "
+                f"{data['sl_hit_rate'] * 100:.1f}% | {data['tp_hit_rate'] * 100:.1f}% | "
+                f"{data['sig_close_rate'] * 100:.1f}% | {data['avg_mfe_r']:.2f}R | "
+                f"{data['net_pnl']:.2f} | {data['max_mfe_r']:.2f}R | "
+                f"{data['avg_mae_r']:.2f}R | {data['stopped_before_1r_pct']:.1f}% | "
+                f"{data['reached_1r_pct']:.1f}% | {data['reached_2r_pct']:.1f}% |\n"
+            )
 
         # MFE Distribution Tables
         f.write("\n## MFE Distribution (V1 Baseline — 1.0ATR SL)\n\n")
@@ -224,8 +237,8 @@ def _generate_md(v1: dict, v2: dict, report_dir: Path, ts: str) -> None:
                     f.write(f"| {rng}R | {pct:.1f}% |\n")
 
         # Best V1 and V2
-        best_v1 = max(v1.items(), key=lambda x: x[1].get('net_pnl', -99999))
-        best_v2 = max(v2.items(), key=lambda x: x[1].get('net_pnl', -99999))
+        best_v1 = max(v1.items(), key=lambda x: x[1].get("net_pnl", -99999))
+        best_v2 = max(v2.items(), key=lambda x: x[1].get("net_pnl", -99999))
 
         f.write("\n## Best Exit Configuration\n\n")
         f.write(f"- **V1 Best PnL**: `{best_v1[0]}` (Net PnL {best_v1[1]['net_pnl']:.2f})\n")
@@ -234,19 +247,33 @@ def _generate_md(v1: dict, v2: dict, report_dir: Path, ts: str) -> None:
         # Analysis
         f.write("## Trade Quality Analysis\n\n")
         f.write("### Key Metrics Explained\n")
-        f.write("- **Avg MFE**: Average Maximum Favorable Excursion in R. If Avg MFE > RR, most trades went deep into profit before hitting SL.\n")
-        f.write("- **Max MFE**: Best case R reached. If Max MFE >> RR, the strategy often had winners that didn't make it to TP.\n")
-        f.write("- **Stopped Before 1R %**: % of trades that reversed and hit SL before making 1R. High % = SL too tight.\n")
-        f.write("- **Reached 2R %**: % of trades that made it past 2R target. Low % = TP is too far.\n")
+        f.write(
+            "- **Avg MFE**: Average Maximum Favorable Excursion in R. If Avg MFE > RR, most trades went deep into profit before hitting SL.\n"
+        )
+        f.write(
+            "- **Max MFE**: Best case R reached. If Max MFE >> RR, the strategy often had winners that didn't make it to TP.\n"
+        )
+        f.write(
+            "- **Stopped Before 1R %**: % of trades that reversed and hit SL before making 1R. High % = SL too tight.\n"
+        )
+        f.write(
+            "- **Reached 2R %**: % of trades that made it past 2R target. Low % = TP is too far.\n"
+        )
 
         # Recommendation
         f.write("\n## Recommended Exit Model Changes\n\n")
         f.write("Based on BACKTEST-007 data:\n")
-        if best_v1[1].get('avg_mfe_r', 0) > best_v1[0].split('/')[0].split('=')[1]:
-            f.write("- **SL too tight**: Avg MFE is significantly higher than RR target. Many trades reverse early.\n")
-        if best_v1[1].get('stopped_before_1r_pct', 0) > 60:
-            f.write(f"- **TP too far**: {best_v1[1]['stopped_before_1r_pct']:.0f}% of trades were stopped before reaching 1R.\n")
-        f.write("- **Recommended Next**: `PROJECT-STRATEGY-003` — Implement improved exit model (e.g. partial TP at 1.5R, ATR stop at 2.0x, break-even after 1R).\n")
+        if best_v1[1].get("avg_mfe_r", 0) > best_v1[0].split("/")[0].split("=")[1]:
+            f.write(
+                "- **SL too tight**: Avg MFE is significantly higher than RR target. Many trades reverse early.\n"
+            )
+        if best_v1[1].get("stopped_before_1r_pct", 0) > 60:
+            f.write(
+                f"- **TP too far**: {best_v1[1]['stopped_before_1r_pct']:.0f}% of trades were stopped before reaching 1R.\n"
+            )
+        f.write(
+            "- **Recommended Next**: `PROJECT-STRATEGY-003` — Implement improved exit model (e.g. partial TP at 1.5R, ATR stop at 2.0x, break-even after 1R).\n"
+        )
 
         f.write("\n## Known Limitations\n\n")
         f.write("- Single 90-day period on one symbol.\n")

@@ -18,13 +18,19 @@ def test_v2_adx_rising_filter():
     start_t = datetime(2026, 1, 1, tzinfo=UTC)
     for i, p in enumerate(prices):
         c = Candle(
-            symbol="XAU-USDT", granularity="15m",
-            open_time=start_t + timedelta(minutes=15*i),
-            open=p-1, high=p+1, low=p-2, close=p, volume=10.0
+            symbol="XAU-USDT",
+            granularity="15m",
+            open_time=start_t + timedelta(minutes=15 * i),
+            open=p - 1,
+            high=p + 1,
+            low=p - 2,
+            close=p,
+            volume=10.0,
         )
-        sig = strategy.on_candle(c, None)
+        strategy.on_candle(c, None)
 
     assert True
+
 
 def test_v2_ema_slope_filter():
     cfg = ConfluenceConfig(
@@ -38,9 +44,14 @@ def test_v2_ema_slope_filter():
     start_t = datetime(2026, 1, 1, tzinfo=UTC)
     for i, p in enumerate(prices):
         c = Candle(
-            symbol="XAU-USDT", granularity="15m",
-            open_time=start_t + timedelta(minutes=15*i),
-            open=p-1, high=p+1, low=p-2, close=p, volume=10.0
+            symbol="XAU-USDT",
+            granularity="15m",
+            open_time=start_t + timedelta(minutes=15 * i),
+            open=p - 1,
+            high=p + 1,
+            low=p - 2,
+            close=p,
+            volume=10.0,
         )
-        sig = strategy.on_candle(c, None)
+        strategy.on_candle(c, None)
     assert True

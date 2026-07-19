@@ -87,15 +87,22 @@ class TestBacktestEnginePartialTP(TestCase):
         candles = []
         candles.append(make_candle(base_time, 100, 100, 100, 100))
         candles.append(make_candle(base_time.replace(minute=1), 100, 104, 100, 103))
-        candles.append(make_candle(base_time.replace(minute=2), 103, 105, 103, 104))  # Hits partial TP
+        candles.append(
+            make_candle(base_time.replace(minute=2), 103, 105, 103, 104)
+        )  # Hits partial TP
         candles.append(make_candle(base_time.replace(minute=3), 104, 105, 103, 103))
 
         bt_config = BacktestConfig(initial_balance=10000, fee_rate=0.0005, slippage_bps=2.0)
 
         # Use a dummy ConfluenceStrategy just to satisfy engine interface
-        dummy_strategy = ConfluenceStrategy(ConfluenceConfig(
-            version="test_partial", improved_exit=True, sl_atr_multiplier=2.0, risk_reward_ratio=2.0
-        ))
+        dummy_strategy = ConfluenceStrategy(
+            ConfluenceConfig(
+                version="test_partial",
+                improved_exit=True,
+                sl_atr_multiplier=2.0,
+                risk_reward_ratio=2.0,
+            )
+        )
         engine = ConfluenceBacktestEngine(bt_config, candles, dummy_strategy)
 
         # Simulate opening a position manually at index 0
@@ -130,10 +137,14 @@ class TestBacktestEnginePartialTP(TestCase):
         candles = []
         candles.append(make_candle(base_time, 100, 100, 100, 100))
         candles.append(make_candle(base_time.replace(minute=1), 100, 105, 100, 104))
-        candles.append(make_candle(base_time.replace(minute=2), 104, 110, 104, 110))  # Hits final TP
+        candles.append(
+            make_candle(base_time.replace(minute=2), 104, 110, 104, 110)
+        )  # Hits final TP
 
         bt_config = BacktestConfig(initial_balance=10000, fee_rate=0.0005, slippage_bps=2.0)
-        dummy_strategy = ConfluenceStrategy(ConfluenceConfig(version="test_final", improved_exit=True))
+        dummy_strategy = ConfluenceStrategy(
+            ConfluenceConfig(version="test_final", improved_exit=True)
+        )
         engine = ConfluenceBacktestEngine(bt_config, candles, dummy_strategy)
 
         engine._position = BacktestPosition(

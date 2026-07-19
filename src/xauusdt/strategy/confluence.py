@@ -67,7 +67,6 @@ class ConfluenceConfig:
 
     # Sensitivity/Ablation Parameters (defaults match v1 spec)
     swing_lookback: int = 10
-    weight_structure: float = 40.0
     weight_ema: float = 20.0
     weight_price_ema: float = 10.0
     weight_adx: float = 15.0
@@ -79,6 +78,15 @@ class ConfluenceConfig:
     # V2 quality filters (all disabled in v1, configurable for v2)
     adx_rising: bool = False  # Require ADX to be increasing (trend strengthening)
     ema_slope_alignment: bool = False  # Require EMA(50) slope aligned with trade direction
+
+    # V3 Experimental Filters (PROJECT-STRATEGY-004)
+    v3_active: bool = False
+    v3_reject_toxic_score: bool = False  # Reject scores in [75, 84]
+    v3_toxic_score_min: float = 75.0
+    v3_toxic_score_max: float = 84.0
+    v3_min_adx: float = 15.0  # Filter out dead markets (ADX < 15)
+    v3_max_adx: float = 40.0  # Filter out late trend whipsaws (ADX > 40)
+    v3_long_bias_penalty: float = 0.0  # Penalty to LONG score to reflect V1 diagnostic bias
 
     # Version label for report identification
     version: str = "v1"
@@ -109,10 +117,13 @@ class ScoreResult:
 
 
 class ConfluenceStrategy:
-    """Confluence scoring strategy v1.
+    """Confluence scoring strategy (v1/v2/v3 via config).
 
     Combines multiple technical indicators into a weighted score
     for BUY and SELL directions. Returns signals based on thresholds.
+
+    V3 experimental entry-quality filters (PROJECT-STRATEGY-004) are opt-in
+    via ``ConfluenceConfig.v3_active`` and do not alter v1/v2 defaults.
     """
 
     def __init__(self, config: ConfluenceConfig | None = None) -> None:
@@ -121,6 +132,8 @@ class ConfluenceStrategy:
         self._history: list[Candle] = []
         self._prev_adx: float | None = None
         self._prev_ema_9: float | None = None
+        # Structured rejection reasons for v3 diagnostics (last evaluation only)
+        self._last_rejection_reasons: list[str] = []
 
     def on_candle(self, candle: Candle, position: BacktestPosition | None) -> Signal:
         """Called on each candle.
@@ -183,8 +196,12 @@ class ConfluenceStrategy:
 
         # Cache previous candle features for V2 filters
         if len(features_list) >= 2 and features_list[-2] is not None:
-            self._prev_adx = features_list[-2].adx_14.adx_value if features_list[-2].adx_14.valid else None
-            self._prev_ema_9 = features_list[-2].ema_9.ema_value if features_list[-2].ema_9.valid else None
+            self._prev_adx = (
+                features_list[-2].adx_14.adx_value if features_list[-2].adx_14.valid else None
+            )
+            self._prev_ema_9 = (
+                features_list[-2].ema_9.ema_value if features_list[-2].ema_9.valid else None
+            )
         else:
             self._prev_adx = None
             self._prev_ema_9 = None
@@ -305,7 +322,8 @@ class ConfluenceStrategy:
         position: BacktestPosition | None,
         features: CandleFeatures,
     ) -> Signal:
-        """Decide signal based on scores, thresholds, and V2 quality filters."""
+        """Decide signal based on scores, thresholds, and quality filters."""
+        self._last_rejection_reasons = []
         gap = abs(score.buy_score - score.sell_score)
 
         # If we have a position, we only look for close signals
@@ -317,13 +335,24 @@ class ConfluenceStrategy:
                 return Signal.BUY  # Close short
             return Signal.HOLD
 
-        # No position: evaluate entry with V2 quality filters
-        if score.buy_score >= self._config.min_score and gap >= self._config.min_score_gap:
+        # Apply optional long-side score penalty (v3 direction bias)
+        buy_score = score.buy_score
+        if self._config.v3_active and self._config.v3_long_bias_penalty > 0:
+            buy_score = score.buy_score - self._config.v3_long_bias_penalty
+
+        # No position: evaluate entry with V2 then V3 quality filters
+        if buy_score >= self._config.min_score and gap >= self._config.min_score_gap:
             if not self._apply_v2_quality(score, features, "buy"):
+                self._last_rejection_reasons.append("v2_quality_failed:buy")
+                return Signal.HOLD
+            if not self._apply_v3_quality(buy_score, features, "buy"):
                 return Signal.HOLD
             return Signal.BUY
         if score.sell_score >= self._config.min_score and gap >= self._config.min_score_gap:
             if not self._apply_v2_quality(score, features, "sell"):
+                self._last_rejection_reasons.append("v2_quality_failed:sell")
+                return Signal.HOLD
+            if not self._apply_v3_quality(score.sell_score, features, "sell"):
                 return Signal.HOLD
             return Signal.SELL
 
@@ -352,6 +381,46 @@ class ConfluenceStrategy:
 
         return True
 
+    def _apply_v3_quality(
+        self, effective_score: float, features: CandleFeatures, side: str
+    ) -> bool:
+        """Apply experimental V3 entry-quality filters (PROJECT-STRATEGY-004).
+
+        Evidence basis: BACKTEST-010 entry diagnostics.
+        Returns True if the signal passes all active v3 filters.
+        Rejection reasons are recorded in ``_last_rejection_reasons``.
+        """
+        if not self._config.v3_active:
+            return True
+
+        reasons: list[str] = []
+
+        # F1: Toxic score zone rejection (experimental — possible late-entry proxy)
+        if self._config.v3_reject_toxic_score:
+            lo = self._config.v3_toxic_score_min
+            hi = self._config.v3_toxic_score_max
+            if lo <= effective_score <= hi:
+                reasons.append(f"v3_toxic_score_zone:{effective_score:.1f}_in_[{lo:.0f},{hi:.0f}]")
+
+        # F2/F4: ADX band filter
+        if features.adx_14.valid:
+            adx = features.adx_14.adx_value
+            if adx < self._config.v3_min_adx:
+                reasons.append(f"v3_adx_below_min:{adx:.1f}<{self._config.v3_min_adx:.0f}")
+            if adx > self._config.v3_max_adx:
+                reasons.append(f"v3_adx_above_max:{adx:.1f}>{self._config.v3_max_adx:.0f}")
+
+        # F3: Optional long-side block when penalty pushes below threshold is
+        # handled via score adjustment in _decide. Additional explicit long skip:
+        if side == "buy" and self._config.v3_long_bias_penalty >= 100.0:
+            # Extreme penalty acts as hard disable for LONG entries
+            reasons.append("v3_long_entries_disabled")
+
+        if reasons:
+            self._last_rejection_reasons.extend(reasons)
+            return False
+        return True
+
     def _check_exit(
         self, candle: Candle, position: BacktestPosition, features: CandleFeatures
     ) -> Signal:
@@ -374,3 +443,46 @@ class ConfluenceStrategy:
     def get_last_score(self) -> ScoreResult:
         """Return the last calculated score for debugging/reporting."""
         return self._last_score
+
+    def get_last_rejection_reasons(self) -> list[str]:
+        """Return structured rejection reasons from the last entry evaluation.
+
+        Empty when the last candle produced a trade signal or was not an entry
+        candidate. Used by diagnostics and unit tests for v3 filters.
+        """
+        return list(self._last_rejection_reasons)
+
+
+def make_v3_config(**overrides: Any) -> ConfluenceConfig:
+    """Factory for experimental ConfluenceStrategy v3 config.
+
+    Enables BACKTEST-010 evidence-based entry filters without changing v1/v2
+    defaults. All filters remain configurable; toxic-zone rejection is
+    experimental (may proxy late-entry rather than true score quality).
+
+    Default v3 profile (when not overridden):
+    - v3_active=True
+    - toxic score zone rejection [75, 84]
+    - ADX band [15, 40]
+    - long bias penalty = 0 (disabled; enable via override if desired)
+    - improved_exit=True (compatible with STRATEGY-003)
+    - version=\"v3_experimental\"
+    """
+    defaults: dict[str, Any] = {
+        "version": "v3_experimental",
+        "v3_active": True,
+        "v3_reject_toxic_score": True,
+        "v3_toxic_score_min": 75.0,
+        "v3_toxic_score_max": 84.0,
+        "v3_min_adx": 15.0,
+        "v3_max_adx": 40.0,
+        "v3_long_bias_penalty": 0.0,
+        "improved_exit": True,
+        "ema_fast_period": 50,
+        "ema_slow_period": 200,
+        "min_score": 65.0,
+        "sl_atr_multiplier": 2.0,
+        "risk_reward_ratio": 2.0,
+    }
+    defaults.update(overrides)
+    return ConfluenceConfig(**defaults)

@@ -29,14 +29,25 @@ def summarize_trades(trades) -> dict:
 
     full_sl = [t for t in trades if t.exit_reason == "SL"]
     partial_tp = [t for t in trades if t.exit_reason == "PARTIAL_TP"]
-    break_even = [t for t in trades if getattr(t, "is_break_even", False) or t.exit_reason == "BREAK_EVEN"]
+    break_even = [
+        t for t in trades if getattr(t, "is_break_even", False) or t.exit_reason == "BREAK_EVEN"
+    ]
     final_tp = [t for t in trades if t.exit_reason == "TP"]
 
     avg_win = sum(t.pnl for t in wins) / len(wins) if wins else 0.0
     avg_loss = sum(t.pnl for t in losses) / len(losses) if losses else 0.0
 
     full_exits = [t for t in trades if not t.is_partial]
-    avg_r = sum((t.gross_pnl / (t.quantity * t.sl_distance)) for t in full_exits if getattr(t, "sl_distance", 0.0) > 0) / len(full_exits) if full_exits else 0.0
+    avg_r = (
+        sum(
+            (t.gross_pnl / (t.quantity * t.sl_distance))
+            for t in full_exits
+            if getattr(t, "sl_distance", 0.0) > 0
+        )
+        / len(full_exits)
+        if full_exits
+        else 0.0
+    )
 
     return {
         "trades_count": len(trades),
@@ -98,8 +109,25 @@ async def main():
         ("Window 3 (61-90)", start_dt + timedelta(days=60), end_dt),
     ]
 
-    base_v1 = ConfluenceConfig(version="v1_new", ema_fast_period=50, ema_slow_period=200, risk_reward_ratio=2.0, sl_atr_multiplier=2.0, improved_exit=True, min_score=65.0)
-    base_v2 = ConfluenceConfig(version="v2_new", adx_min=25.0, adx_rising=True, ema_slope_alignment=True, risk_reward_ratio=2.5, sl_atr_multiplier=2.5, improved_exit=True, min_score=65.0)
+    base_v1 = ConfluenceConfig(
+        version="v1_new",
+        ema_fast_period=50,
+        ema_slow_period=200,
+        risk_reward_ratio=2.0,
+        sl_atr_multiplier=2.0,
+        improved_exit=True,
+        min_score=65.0,
+    )
+    base_v2 = ConfluenceConfig(
+        version="v2_new",
+        adx_min=25.0,
+        adx_rising=True,
+        ema_slope_alignment=True,
+        risk_reward_ratio=2.5,
+        sl_atr_multiplier=2.5,
+        improved_exit=True,
+        min_score=65.0,
+    )
 
     print("\\n--- Walk-Forward Analysis ---")
     wf_results = {}
@@ -125,27 +153,41 @@ async def main():
         for final_tp in [2.0, 2.5]:
             for p_ratio in [0.5, 0.7]:
                 for p_rr in [1.0, 1.5]:
-                    if p_rr >= final_tp: continue
+                    if p_rr >= final_tp:
+                        continue
                     cfg = ConfluenceConfig(
                         version=f"v1_rob_atr{sl_atr}_tp{final_tp}_pr{p_ratio}_prr{p_rr}",
-                        ema_fast_period=50, ema_slow_period=200, min_score=65.0,
+                        ema_fast_period=50,
+                        ema_slow_period=200,
+                        min_score=65.0,
                         improved_exit=True,
                         sl_atr_multiplier=sl_atr,
                         risk_reward_ratio=final_tp,
                         partial_tp_ratio=p_ratio,
-                        partial_tp_rr=p_rr
+                        partial_tp_rr=p_rr,
                     )
                     res = run_backtest(cfg, base_candles)
                     m = res.metrics
-                    robustness.append({
-                        "sl_atr": sl_atr, "final_tp": final_tp, "partial_ratio": p_ratio, "partial_rr": p_rr,
-                        "trades": m.total_trades, "wr": m.win_rate, "pnl": m.net_pnl, "dd": m.max_drawdown_pct, "expectancy": m.expectancy
-                    })
+                    robustness.append(
+                        {
+                            "sl_atr": sl_atr,
+                            "final_tp": final_tp,
+                            "partial_ratio": p_ratio,
+                            "partial_rr": p_rr,
+                            "trades": m.total_trades,
+                            "wr": m.win_rate,
+                            "pnl": m.net_pnl,
+                            "dd": m.max_drawdown_pct,
+                            "expectancy": m.expectancy,
+                        }
+                    )
 
     # Sort robustness by PnL
     robustness = sorted(robustness, key=lambda x: x["pnl"], reverse=True)
     for r in robustness[:5]:
-        print(f"ATR {r['sl_atr']}, TP {r['final_tp']}, PR {r['partial_ratio']}, PRR {r['partial_rr']} -> PnL: ${r['pnl']:.2f}, WR: {r['wr']*100:.1f}%, DD: {r['dd']:.2f}%")
+        print(
+            f"ATR {r['sl_atr']}, TP {r['final_tp']}, PR {r['partial_ratio']}, PRR {r['partial_rr']} -> PnL: ${r['pnl']:.2f}, WR: {r['wr'] * 100:.1f}%, DD: {r['dd']:.2f}%"
+        )
 
     ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     report_dir = Path("docs/reports")
@@ -164,44 +206,55 @@ async def main():
         "## Walk-Forward Analysis",
         "",
         "| Window | Strategy | Trades | Win Rate | Net PnL | Max DD | Expectancy |",
-        "|--------|----------|--------|----------|---------|--------|------------|"
+        "|--------|----------|--------|----------|---------|--------|------------|",
     ]
 
     for name, res in wf_results.items():
         v1 = res["v1"]["metrics"]
         v2 = res["v2"]["metrics"]
-        md.append(f"| {name} | V1 Improved | {v1['total_trades']} | {v1['win_rate']*100:.1f}% | ${v1['net_pnl']:,.2f} | {v1['max_drawdown_pct']:.2f}% | ${v1['expectancy']:.2f} |")
-        md.append(f"| {name} | V2 Improved | {v2['total_trades']} | {v2['win_rate']*100:.1f}% | ${v2['net_pnl']:,.2f} | {v2['max_drawdown_pct']:.2f}% | ${v2['expectancy']:.2f} |")
+        md.append(
+            f"| {name} | V1 Improved | {v1['total_trades']} | {v1['win_rate'] * 100:.1f}% | ${v1['net_pnl']:,.2f} | {v1['max_drawdown_pct']:.2f}% | ${v1['expectancy']:.2f} |"
+        )
+        md.append(
+            f"| {name} | V2 Improved | {v2['total_trades']} | {v2['win_rate'] * 100:.1f}% | ${v2['net_pnl']:,.2f} | {v2['max_drawdown_pct']:.2f}% | ${v2['expectancy']:.2f} |"
+        )
 
-    md.extend([
-        "",
-        "## Parameter Robustness Grid (V1 Entry)",
-        "Top 10 configurations sorted by Net PnL over the full 90-day dataset:",
-        "",
-        "| SL ATR | Final TP | Partial Ratio | Partial TP RR | Trades | Win Rate | Net PnL | Max DD | Expectancy |",
-        "|--------|----------|---------------|---------------|--------|----------|---------|--------|------------|"
-    ])
+    md.extend(
+        [
+            "",
+            "## Parameter Robustness Grid (V1 Entry)",
+            "Top 10 configurations sorted by Net PnL over the full 90-day dataset:",
+            "",
+            "| SL ATR | Final TP | Partial Ratio | Partial TP RR | Trades | Win Rate | Net PnL | Max DD | Expectancy |",
+            "|--------|----------|---------------|---------------|--------|----------|---------|--------|------------|",
+        ]
+    )
 
     for r in robustness[:10]:
-        md.append(f"| {r['sl_atr']} | {r['final_tp']} | {r['partial_ratio']*100:.0f}% | {r['partial_rr']}R | {r['trades']} | {r['wr']*100:.1f}% | ${r['pnl']:,.2f} | {r['dd']:.2f}% | ${r['expectancy']:.2f} |")
+        md.append(
+            f"| {r['sl_atr']} | {r['final_tp']} | {r['partial_ratio'] * 100:.0f}% | {r['partial_rr']}R | {r['trades']} | {r['wr'] * 100:.1f}% | ${r['pnl']:,.2f} | {r['dd']:.2f}% | ${r['expectancy']:.2f} |"
+        )
 
-    md.extend([
-        "",
-        "## Metric Scale Audit",
-        "Drawdown percentages and Net PnL figures are consistent with BACKTEST-008. Drawdown remains in the 0.3% - 0.5% range due to the fixed fractional risk applied at $10k balance with 1% risk per trade.",
-        "",
-        "## Conclusion",
-        "While the improved exit model consistently outperforms the old model across all windows, **Net PnL remains negative in every single window.** Parameter tuning (robustness) cannot flip a structurally unprofitable entry signal into a profitable system.",
-        "The exit model is robust, but the *system* is not.",
-        "",
-        "### Next Steps",
-        "Proceed to **PROJECT-STRATEGY-004** to refine entry quality filters, as the current `min_score=65` selects trades that still have negative mathematical expectancy."
-    ])
+    md.extend(
+        [
+            "",
+            "## Metric Scale Audit",
+            "Drawdown percentages and Net PnL figures are consistent with BACKTEST-008. Drawdown remains in the 0.3% - 0.5% range due to the fixed fractional risk applied at $10k balance with 1% risk per trade.",
+            "",
+            "## Conclusion",
+            "While the improved exit model consistently outperforms the old model across all windows, **Net PnL remains negative in every single window.** Parameter tuning (robustness) cannot flip a structurally unprofitable entry signal into a profitable system.",
+            "The exit model is robust, but the *system* is not.",
+            "",
+            "### Next Steps",
+            "Proceed to **PROJECT-STRATEGY-004** to refine entry quality filters, as the current `min_score=65` selects trades that still have negative mathematical expectancy.",
+        ]
+    )
 
     with open(report_dir / f"robustness_BACKTEST-009_{ts}.md", "w") as f:
         f.write("\\n".join(md))
 
     print(f"\\nSaved reports to {report_dir}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

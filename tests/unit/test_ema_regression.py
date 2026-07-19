@@ -15,7 +15,7 @@ def test_calc_ema_regression():
     ema = calc_ema(values, period=2)
 
     assert ema[0] is None
-    assert ema[1] == pytest.approx(4800.5) # SMA of first 2 elements
+    assert ema[1] == pytest.approx(4800.5)  # SMA of first 2 elements
     # EMA3 = (4802 - 4800.5) * 0.6666 + 4800.5 = 4801.5
     assert ema[2] == pytest.approx(4801.5)
 
