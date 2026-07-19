@@ -70,7 +70,9 @@ async def main() -> None:
         version="v2",
     )
 
-    print(f"Filters: ADX Rising={strategy_config.adx_rising}, EMA Slope={strategy_config.ema_slope_alignment}")
+    print(
+        f"Filters: ADX Rising={strategy_config.adx_rising}, EMA Slope={strategy_config.ema_slope_alignment}"
+    )
     print(f"Thresholds: ADX Min={strategy_config.adx_min}, Min Score={strategy_config.min_score}")
     print(f"Risk: RR={strategy_config.risk_reward_ratio}x\n")
 
@@ -122,7 +124,7 @@ async def main() -> None:
             "expectancy": m.expectancy,
             "longs": longs,
             "shorts": shorts,
-        }
+        },
     }
     with open(json_file, "w") as f:
         json.dump(report_data, f, indent=2)

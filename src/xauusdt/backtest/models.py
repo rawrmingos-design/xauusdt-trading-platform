@@ -65,23 +65,9 @@ class BacktestTrade:
     pnl_pct: float
     fee: float
     exit_reason: str  # "SL", "TP", "SIGNAL", "EOL", "PARTIAL_TP", "BREAK_EVEN"
-    is_break_even: bool = False # True if this is a break-even SL exit
-    is_partial: bool = False # True if this is a partial exit trade
-    # Context for diagnostics (PROJECT-BACKTEST-010)
-    context_score: float = 0.0
-    context_adx: float = 0.0
-    context_ema_trend: str = "FLAT"
-    context_structure: str = "NEUTRAL"
-    context_conflict: bool = False
-    context_swing_recency: int = 0
-    # Exit Model Diagnostics (added for BACKTEST-007)
-    max_mfe: float = 0.0  # max favorable excursion (price)
-    max_mfe_pct: float = 0.0  # max favorable excursion (pct)
-    max_mae: float = 0.0  # max adverse excursion (price)
-    max_mae_pct: float = 0.0  # max adverse excursion (pct)
-    max_r: float = 0.0  # max R multiple reached during trade
-    atr_at_entry: float = 0.0  # ATR value at entry candle
-    sl_distance: float = 0.0  # distance from entry to SL (price)
+    is_break_even: bool = False  # True if this is a break-even SL exit
+    is_partial: bool = False  # True if this is a partial exit trade
+    slippage_cost: float = 0.0
 
     # Context for diagnostics (PROJECT-BACKTEST-010)
     context_score: float = 0.0
@@ -90,6 +76,15 @@ class BacktestTrade:
     context_structure: str = "NEUTRAL"  # "BULLISH", "BEARISH", "NEUTRAL"
     context_conflict: bool = False  # True if EMA trend and structure disagree
     context_swing_recency: int = 0  # candles since last swing point
+
+    # Exit Model Diagnostics (added for BACKTEST-007)
+    max_mfe: float = 0.0  # max favorable excursion (price)
+    max_mfe_pct: float = 0.0  # max favorable excursion (pct)
+    max_mae: float = 0.0  # max adverse excursion (price)
+    max_mae_pct: float = 0.0  # max adverse excursion (pct)
+    max_r: float = 0.0  # max R multiple reached during trade
+    atr_at_entry: float = 0.0  # ATR value at entry candle
+    sl_distance: float = 0.0  # distance from entry to SL (price)
 
     @property
     def gross_pnl(self) -> float:
