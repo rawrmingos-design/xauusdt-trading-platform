@@ -486,3 +486,33 @@ def make_v3_config(**overrides: Any) -> ConfluenceConfig:
     }
     defaults.update(overrides)
     return ConfluenceConfig(**defaults)
+
+
+def make_v3_candidate_config(**overrides: Any) -> ConfluenceConfig:
+    """Factory for the PROMOTED v3 candidate config from PROJECT-STRATEGY-005.
+
+    Based on BACKTEST-012 validation where LP=5.0 and ADXmax=45.0 proved
+    superior. Toxic-zone rejection is DISABLED because the long bias penalty
+    is active and sufficient to correct the proxy error.
+
+    NOTE: This is a research candidate, not a production-ready profile.
+    It showed mixed walk-forward results (weakness in W2 regime).
+    """
+    defaults: dict[str, Any] = {
+        "version": "v3_candidate",
+        "v3_active": True,
+        "v3_reject_toxic_score": False,  # disabled in candidate
+        "v3_toxic_score_min": 75.0,
+        "v3_toxic_score_max": 84.0,
+        "v3_min_adx": 15.0,
+        "v3_max_adx": 45.0,  # updated to 45.0 based on BT-012
+        "v3_long_bias_penalty": 5.0,  # updated to 5.0 based on BT-012
+        "improved_exit": True,
+        "ema_fast_period": 50,
+        "ema_slow_period": 200,
+        "min_score": 65.0,
+        "sl_atr_multiplier": 2.0,
+        "risk_reward_ratio": 2.0,
+    }
+    defaults.update(overrides)
+    return ConfluenceConfig(**defaults)

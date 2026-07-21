@@ -9,6 +9,7 @@ from xauusdt.strategy.confluence import (
     ConfluenceConfig,
     ConfluenceStrategy,
     ScoreResult,
+    make_v3_candidate_config,
     make_v3_config,
 )
 
@@ -140,3 +141,15 @@ def test_v3_can_be_instantiated_explicitly():
     assert strategy._config.version == "v3_experimental"
     assert strategy._config.v3_active is True
     assert strategy._config.improved_exit is True
+
+
+def test_v3_candidate_config_matches_bt012_spec():
+    cfg = make_v3_candidate_config()
+    assert cfg.version == "v3_candidate"
+    assert cfg.v3_active is True
+    assert cfg.v3_reject_toxic_score is False
+    assert cfg.v3_max_adx == 45.0
+    assert cfg.v3_long_bias_penalty == 5.0
+    assert cfg.improved_exit is True
+    assert cfg.min_score == 65.0
+    assert cfg.min_score_gap == 15.0
