@@ -1,0 +1,603 @@
+{
+  "task_id": "PROJECT-BACKTEST-013",
+  "generated_at": "2026-07-25T14:09:43.571968+00:00",
+  "symbol": "XAU-USDT-SWAP",
+  "granularity": "15m",
+  "candles": 8640,
+  "windows": [
+    {
+      "window": "W1",
+      "config": {
+        "version": "v3_candidate",
+        "v3_long_bias_penalty": 5.0,
+        "v3_max_adx": 45.0,
+        "v3_reject_toxic_score": false,
+        "improved_exit": true,
+        "adx_rising": true,
+        "ema_slope_alignment": true,
+        "sl_atr_multiplier": 1.5,
+        "risk_reward_ratio": 2.5
+      },
+      "market": {
+        "candles": 2880,
+        "start_time": "2026-04-16T00:00:00+00:00",
+        "end_time": "2026-05-15T23:45:00+00:00",
+        "start_price": 4813.0,
+        "end_price": 4546.6,
+        "net_return_pct": -5.535009349677948,
+        "high": 4877.4,
+        "low": 4508.0,
+        "range_pct": 7.675046748389771,
+        "avg_candle_range": 6.005868055555537,
+        "median_candle_range": 4.800000000000182,
+        "return_vol": 0.0011511571476975199,
+        "max_drawdown_pct": 7.243787225302933,
+        "up_bar_pct": 48.541666666666664,
+        "down_bar_pct": 47.638888888888886,
+        "direction_bias": "DOWN"
+      },
+      "performance": {
+        "entries": 140,
+        "trade_legs": 179,
+        "win_rate": 0.4142857142857143,
+        "net_pnl": -6.554683390712986,
+        "expectancy_r": 0.03964924000759126,
+        "long_entries": 67,
+        "short_entries": 73,
+        "long_r": -0.02881017506894629,
+        "short_r": 0.10248185384496135,
+        "avg_score": 76.03571428571429,
+        "avg_adx": 28.640423578560842,
+        "median_adx": 28.481601971426123,
+        "exit_reasons": {
+          "SL": 82,
+          "PARTIAL_TP": 39,
+          "SIGNAL": 36,
+          "TP": 21,
+          "EOL": 1
+        },
+        "score_buckets": {
+          "65-69": {
+            "entries": 3,
+            "expectancy_r": 1.0261946755226399,
+            "win_rate": 0.3333333333333333
+          },
+          "70-74": {
+            "entries": 76,
+            "expectancy_r": -0.0008178752387028204,
+            "win_rate": 0.4473684210526316
+          },
+          "75-79": {
+            "entries": 18,
+            "expectancy_r": -0.22966349750375067,
+            "win_rate": 0.2222222222222222
+          },
+          "80-84": {
+            "entries": 3,
+            "expectancy_r": 0.5008982699489828,
+            "win_rate": 0.6666666666666666
+          },
+          "85-89": {
+            "entries": 12,
+            "expectancy_r": 0.12886196254811916,
+            "win_rate": 0.3333333333333333
+          },
+          "90+": {
+            "entries": 28,
+            "expectancy_r": 0.12926331025997878,
+            "win_rate": 0.4642857142857143
+          }
+        },
+        "adx_buckets": {
+          "15-20": {
+            "entries": 16,
+            "expectancy_r": -0.15829820632669764,
+            "win_rate": 0.3125
+          },
+          "20-25": {
+            "entries": 34,
+            "expectancy_r": 0.17787777029152968,
+            "win_rate": 0.38235294117647056
+          },
+          "25-30": {
+            "entries": 31,
+            "expectancy_r": 0.07047235686089529,
+            "win_rate": 0.4838709677419355
+          },
+          "30-35": {
+            "entries": 27,
+            "expectancy_r": 0.015075823951544935,
+            "win_rate": 0.4444444444444444
+          },
+          "35-40": {
+            "entries": 21,
+            "expectancy_r": -0.05085566384434378,
+            "win_rate": 0.3333333333333333
+          },
+          "40-45": {
+            "entries": 11,
+            "expectancy_r": 0.04655448579360748,
+            "win_rate": 0.5454545454545454
+          }
+        },
+        "structure_buckets": {
+          "bearish": {
+            "entries": 44,
+            "expectancy_r": 0.09804029282747856,
+            "win_rate": 0.4090909090909091
+          },
+          "bullish": {
+            "entries": 96,
+            "expectancy_r": 0.012886674131809588,
+            "win_rate": 0.4166666666666667
+          }
+        },
+        "ema_trend_buckets": {
+          "DOWN": {
+            "entries": 97,
+            "expectancy_r": 0.07156835906649521,
+            "win_rate": 0.422680412371134
+          },
+          "UP": {
+            "entries": 43,
+            "expectancy_r": -0.032354354148540876,
+            "win_rate": 0.3953488372093023
+          }
+        },
+        "conflict_rate": 0.0
+      }
+    },
+    {
+      "window": "W2",
+      "config": {
+        "version": "v3_candidate",
+        "v3_long_bias_penalty": 5.0,
+        "v3_max_adx": 45.0,
+        "v3_reject_toxic_score": false,
+        "improved_exit": true,
+        "adx_rising": true,
+        "ema_slope_alignment": true,
+        "sl_atr_multiplier": 1.5,
+        "risk_reward_ratio": 2.5
+      },
+      "market": {
+        "candles": 2880,
+        "start_time": "2026-05-16T00:00:00+00:00",
+        "end_time": "2026-06-14T23:45:00+00:00",
+        "start_price": 4546.7,
+        "end_price": 4296.6,
+        "net_return_pct": -5.500692810170001,
+        "high": 4592.7,
+        "low": 4027.8,
+        "range_pct": 12.424395715573926,
+        "avg_candle_range": 6.763333333333312,
+        "median_candle_range": 5.300000000000182,
+        "return_vol": 0.0013113489419003502,
+        "max_drawdown_pct": 12.06554662134188,
+        "up_bar_pct": 48.26388888888889,
+        "down_bar_pct": 49.40972222222222,
+        "direction_bias": "DOWN"
+      },
+      "performance": {
+        "entries": 133,
+        "trade_legs": 165,
+        "win_rate": 0.44360902255639095,
+        "net_pnl": -4.232367542744729,
+        "expectancy_r": -0.06256079668051481,
+        "long_entries": 73,
+        "short_entries": 60,
+        "long_r": -0.0787058155308989,
+        "short_r": -0.04291769041254749,
+        "avg_score": 74.81203007518798,
+        "avg_adx": 27.322906677933826,
+        "median_adx": 25.7769217718118,
+        "exit_reasons": {
+          "PARTIAL_TP": 32,
+          "SL": 65,
+          "SIGNAL": 51,
+          "TP": 16,
+          "EOL": 1
+        },
+        "score_buckets": {
+          "65-69": {
+            "entries": 2,
+            "expectancy_r": -0.20471234368027924,
+            "win_rate": 0.5
+          },
+          "70-74": {
+            "entries": 87,
+            "expectancy_r": 0.024666706091052436,
+            "win_rate": 0.4827586206896552
+          },
+          "75-79": {
+            "entries": 8,
+            "expectancy_r": -0.5415131308763225,
+            "win_rate": 0.25
+          },
+          "80-84": {
+            "entries": 5,
+            "expectancy_r": -1.0176850760270604,
+            "win_rate": 0.0
+          },
+          "85-89": {
+            "entries": 12,
+            "expectancy_r": -0.017616988502857006,
+            "win_rate": 0.4166666666666667
+          },
+          "90+": {
+            "entries": 19,
+            "expectancy_r": -0.022380547994174084,
+            "win_rate": 0.47368421052631576
+          }
+        },
+        "adx_buckets": {
+          "15-20": {
+            "entries": 19,
+            "expectancy_r": -0.13523635362507255,
+            "win_rate": 0.42105263157894735
+          },
+          "20-25": {
+            "entries": 41,
+            "expectancy_r": -0.20958928894040735,
+            "win_rate": 0.34146341463414637
+          },
+          "25-30": {
+            "entries": 29,
+            "expectancy_r": 0.1716968342251383,
+            "win_rate": 0.5862068965517241
+          },
+          "30-35": {
+            "entries": 17,
+            "expectancy_r": -0.05694077751732751,
+            "win_rate": 0.47058823529411764
+          },
+          "35-40": {
+            "entries": 14,
+            "expectancy_r": -0.1095305088691544,
+            "win_rate": 0.42857142857142855
+          },
+          "40-45": {
+            "entries": 13,
+            "expectancy_r": 0.0280213658737176,
+            "win_rate": 0.46153846153846156
+          }
+        },
+        "structure_buckets": {
+          "bearish": {
+            "entries": 44,
+            "expectancy_r": -0.05616812707683495,
+            "win_rate": 0.36363636363636365
+          },
+          "bullish": {
+            "entries": 89,
+            "expectancy_r": -0.06572121760817676,
+            "win_rate": 0.48314606741573035
+          }
+        },
+        "ema_trend_buckets": {
+          "DOWN": {
+            "entries": 76,
+            "expectancy_r": 0.0005470872237282677,
+            "win_rate": 0.5131578947368421
+          },
+          "UP": {
+            "entries": 57,
+            "expectancy_r": -0.14670464188617224,
+            "win_rate": 0.3508771929824561
+          }
+        },
+        "conflict_rate": 0.0
+      }
+    },
+    {
+      "window": "W3",
+      "config": {
+        "version": "v3_candidate",
+        "v3_long_bias_penalty": 5.0,
+        "v3_max_adx": 45.0,
+        "v3_reject_toxic_score": false,
+        "improved_exit": true,
+        "adx_rising": true,
+        "ema_slope_alignment": true,
+        "sl_atr_multiplier": 1.5,
+        "risk_reward_ratio": 2.5
+      },
+      "market": {
+        "candles": 2880,
+        "start_time": "2026-06-15T00:00:00+00:00",
+        "end_time": "2026-07-14T23:45:00+00:00",
+        "start_price": 4296.5,
+        "end_price": 4057.5,
+        "net_return_pct": -5.562667287326894,
+        "high": 4384.8,
+        "low": 3950.8,
+        "range_pct": 10.101245199581054,
+        "avg_candle_range": 6.426874999999992,
+        "median_candle_range": 5.2999999999995,
+        "return_vol": 0.0013944028211172466,
+        "max_drawdown_pct": 9.507620699096474,
+        "up_bar_pct": 48.26388888888889,
+        "down_bar_pct": 49.0625,
+        "direction_bias": "DOWN"
+      },
+      "performance": {
+        "entries": 142,
+        "trade_legs": 186,
+        "win_rate": 0.4859154929577465,
+        "net_pnl": 34.44869595009376,
+        "expectancy_r": 0.10147182444482747,
+        "long_entries": 65,
+        "short_entries": 77,
+        "long_r": -0.08566797502654702,
+        "short_r": 0.259446979842741,
+        "avg_score": 75.77464788732394,
+        "avg_adx": 25.998159734231795,
+        "median_adx": 24.43663240105832,
+        "exit_reasons": {
+          "SIGNAL": 41,
+          "PARTIAL_TP": 44,
+          "TP": 21,
+          "SL": 80
+        },
+        "score_buckets": {
+          "65-69": {
+            "entries": 5,
+            "expectancy_r": 0.02624184177653156,
+            "win_rate": 0.8
+          },
+          "70-74": {
+            "entries": 77,
+            "expectancy_r": 0.19889151283673798,
+            "win_rate": 0.4675324675324675
+          },
+          "75-79": {
+            "entries": 14,
+            "expectancy_r": -0.011024436014618713,
+            "win_rate": 0.5
+          },
+          "80-84": {
+            "entries": 7,
+            "expectancy_r": -0.19010233380531352,
+            "win_rate": 0.42857142857142855
+          },
+          "85-89": {
+            "entries": 15,
+            "expectancy_r": -0.10498905798314288,
+            "win_rate": 0.4666666666666667
+          },
+          "90+": {
+            "entries": 24,
+            "expectancy_r": 0.08429323685179242,
+            "win_rate": 0.5
+          }
+        },
+        "adx_buckets": {
+          "15-20": {
+            "entries": 21,
+            "expectancy_r": -0.08614109816845827,
+            "win_rate": 0.38095238095238093
+          },
+          "20-25": {
+            "entries": 53,
+            "expectancy_r": 0.20625826051503265,
+            "win_rate": 0.5283018867924528
+          },
+          "25-30": {
+            "entries": 27,
+            "expectancy_r": 0.12116605065269274,
+            "win_rate": 0.5185185185185185
+          },
+          "30-35": {
+            "entries": 22,
+            "expectancy_r": -0.07378405621672958,
+            "win_rate": 0.45454545454545453
+          },
+          "35-40": {
+            "entries": 16,
+            "expectancy_r": 0.1761781545485746,
+            "win_rate": 0.4375
+          },
+          "40-45": {
+            "entries": 3,
+            "expectancy_r": 0.2730632405915156,
+            "win_rate": 0.6666666666666666
+          }
+        },
+        "structure_buckets": {
+          "bearish": {
+            "entries": 46,
+            "expectancy_r": 0.08863370987458412,
+            "win_rate": 0.5652173913043478
+          },
+          "bullish": {
+            "entries": 96,
+            "expectancy_r": 0.10762342100973574,
+            "win_rate": 0.4479166666666667
+          }
+        },
+        "ema_trend_buckets": {
+          "DOWN": {
+            "entries": 94,
+            "expectancy_r": 0.20616389817267722,
+            "win_rate": 0.48936170212765956
+          },
+          "UP": {
+            "entries": 48,
+            "expectancy_r": -0.10355015327221163,
+            "win_rate": 0.4791666666666667
+          }
+        },
+        "conflict_rate": 0.0
+      }
+    },
+    {
+      "window": "FULL",
+      "config": {
+        "version": "v3_candidate",
+        "v3_long_bias_penalty": 5.0,
+        "v3_max_adx": 45.0,
+        "v3_reject_toxic_score": false,
+        "improved_exit": true,
+        "adx_rising": true,
+        "ema_slope_alignment": true,
+        "sl_atr_multiplier": 1.5,
+        "risk_reward_ratio": 2.5
+      },
+      "market": {
+        "candles": 8640,
+        "start_time": "2026-04-16T00:00:00+00:00",
+        "end_time": "2026-07-14T23:45:00+00:00",
+        "start_price": 4813.0,
+        "end_price": 4057.5,
+        "net_return_pct": -15.697070434240597,
+        "high": 4877.4,
+        "low": 3950.8,
+        "range_pct": 19.25202576355702,
+        "avg_candle_range": 6.398692129629613,
+        "median_candle_range": 5.100000000000364,
+        "return_vol": 0.0012893825612257908,
+        "max_drawdown_pct": 18.543848839597455,
+        "up_bar_pct": 48.35648148148148,
+        "down_bar_pct": 48.7037037037037,
+        "direction_bias": "DOWN"
+      },
+      "performance": {
+        "entries": 421,
+        "trade_legs": 542,
+        "win_rate": 0.4513064133016627,
+        "net_pnl": 25.247538453997873,
+        "expectancy_r": 0.03484448383470296,
+        "long_entries": 210,
+        "short_entries": 211,
+        "long_r": -0.06311447713005947,
+        "short_r": 0.1323391843209594,
+        "avg_score": 75.64133016627079,
+        "avg_adx": 27.326673989774946,
+        "median_adx": 26.04199807317235,
+        "exit_reasons": {
+          "SL": 235,
+          "PARTIAL_TP": 121,
+          "SIGNAL": 127,
+          "TP": 59
+        },
+        "score_buckets": {
+          "65-69": {
+            "entries": 10,
+            "expectancy_r": 0.49518687749887547,
+            "win_rate": 0.7
+          },
+          "70-74": {
+            "entries": 239,
+            "expectancy_r": 0.0689635965550468,
+            "win_rate": 0.46443514644351463
+          },
+          "75-79": {
+            "entries": 44,
+            "expectancy_r": -0.19131608354389806,
+            "win_rate": 0.3409090909090909
+          },
+          "80-84": {
+            "entries": 16,
+            "expectancy_r": -0.364007314990759,
+            "win_rate": 0.3125
+          },
+          "85-89": {
+            "entries": 39,
+            "expectancy_r": -0.006151184138674672,
+            "win_rate": 0.41025641025641024
+          },
+          "90+": {
+            "entries": 73,
+            "expectancy_r": 0.1057161676706435,
+            "win_rate": 0.4931506849315068
+          }
+        },
+        "adx_buckets": {
+          "15-20": {
+            "entries": 58,
+            "expectancy_r": -0.22354123276822438,
+            "win_rate": 0.3448275862068966
+          },
+          "20-25": {
+            "entries": 128,
+            "expectancy_r": 0.0981947244189797,
+            "win_rate": 0.4375
+          },
+          "25-30": {
+            "entries": 90,
+            "expectancy_r": 0.1335498284691042,
+            "win_rate": 0.5333333333333333
+          },
+          "30-35": {
+            "entries": 66,
+            "expectancy_r": -0.0026472021117771834,
+            "win_rate": 0.4696969696969697
+          },
+          "35-40": {
+            "entries": 51,
+            "expectancy_r": 0.01392373924133691,
+            "win_rate": 0.39215686274509803
+          },
+          "40-45": {
+            "entries": 28,
+            "expectancy_r": 0.08968266232811761,
+            "win_rate": 0.5357142857142857
+          }
+        },
+        "structure_buckets": {
+          "bearish": {
+            "entries": 134,
+            "expectancy_r": 0.02132606101814715,
+            "win_rate": 0.44029850746268656
+          },
+          "bullish": {
+            "entries": 287,
+            "expectancy_r": 0.04115622131699731,
+            "win_rate": 0.4564459930313589
+          }
+        },
+        "ema_trend_buckets": {
+          "DOWN": {
+            "entries": 271,
+            "expectancy_r": 0.10490732888977752,
+            "win_rate": 0.47601476014760147
+          },
+          "UP": {
+            "entries": 150,
+            "expectancy_r": -0.09173572289813174,
+            "win_rate": 0.4066666666666667
+          }
+        },
+        "conflict_rate": 0.0
+      }
+    }
+  ],
+  "comparison": {
+    "primary_failure_mode": "both_sides_negative",
+    "robustness": "mixed_regime_dependent",
+    "positive_windows": 2,
+    "findings": [
+      "W2 has the highest average candle range (volatility expansion)",
+      "W2 has the smallest net directional move (more range-bound)",
+      "W2 SHORT expectancy is worst (-0.043R) vs W1/W3"
+    ],
+    "w2_vs_w1": {
+      "expectancy_r_delta": -0.10221003668810608,
+      "long_r_delta": -0.04989564046195262,
+      "short_r_delta": -0.14539954425750884,
+      "net_return_pct_delta": 0.03431653950794722,
+      "vol_delta": 0.0001601917942028303,
+      "avg_adx_delta": -1.317516900627016
+    },
+    "w2_vs_w3": {
+      "expectancy_r_delta": -0.16403262112534228,
+      "long_r_delta": 0.006962159495648115,
+      "short_r_delta": -0.3023646702552885,
+      "net_return_pct_delta": 0.06197447715689286,
+      "vol_delta": -8.305387921689637e-05,
+      "avg_adx_delta": 1.3247469437020314
+    }
+  },
+  "status": "diagnostics_only",
+  "production_ready": false
+}
