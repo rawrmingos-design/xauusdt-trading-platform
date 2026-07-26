@@ -104,6 +104,10 @@ class ConfluenceConfig:
     # When True, block entries while label == RANGE_CHOP
     v3_block_range_chop: bool = True
 
+    # STRATEGY-007 context filters (BACKTEST-015 evidence; opt-in only)
+    # Block LONG entries when EMA(9) > EMA(21) ("EMA-UP" / counter-trend long proxy).
+    v3_block_long_ema_up: bool = False
+
     # Version label for report identification
     version: str = "v1"
 
@@ -445,6 +449,17 @@ class ConfluenceStrategy:
                     f"avg={snap.avg_candle_range_pct:.4f}"
                 )
 
+        # F6: Optional LONG block when EMA stack is UP (PROJECT-STRATEGY-007 / BACKTEST-015)
+        # Matches backtest context_ema_trend == "UP" (ema_9 > ema_21).
+        if self._config.v3_block_long_ema_up and side == "buy":
+            if features.ema_9.valid and features.ema_21.valid:
+                if features.ema_9.ema_value > features.ema_21.ema_value:
+                    reasons.append(
+                        "v3_block_long_ema_up:"
+                        f"ema9={features.ema_9.ema_value:.4f}>"
+                        f"ema21={features.ema_21.ema_value:.4f}"
+                    )
+
         if reasons:
             self._last_rejection_reasons.extend(reasons)
             return False
@@ -583,6 +598,55 @@ def make_v3_candidate_regime_gated_config(**overrides: Any) -> ConfluenceConfig:
         "v3_regime_efficiency_max": 0.30,
         "v3_regime_range_pct_min": 0.035,
         "v3_regime_avg_range_pct_min": 0.0012,
+    }
+    defaults.update(overrides)
+    return make_v3_candidate_config(**defaults)
+
+
+def make_v3_candidate_s7a_config(**overrides: Any) -> ConfluenceConfig:
+    """STRATEGY-007 profile A: v3_candidate + toxic score reject [75, 84].
+
+    Evidence: BACKTEST-015 counterfactual toxic_score_75_84 (in-sample lift).
+    Research only. Does not change baseline ``v3_candidate``.
+    """
+    defaults: dict[str, Any] = {
+        "version": "v3_candidate_s7a",
+        "v3_reject_toxic_score": True,
+        "v3_toxic_score_min": 75.0,
+        "v3_toxic_score_max": 84.0,
+        "v3_block_long_ema_up": False,
+    }
+    defaults.update(overrides)
+    return make_v3_candidate_config(**defaults)
+
+
+def make_v3_candidate_s7b_config(**overrides: Any) -> ConfluenceConfig:
+    """STRATEGY-007 profile B: v3_candidate + block LONG when EMA-UP.
+
+    Evidence: BACKTEST-015 LONG|UP loss mass + ema_up counterfactual.
+    Research only. Does not change baseline ``v3_candidate``.
+    """
+    defaults: dict[str, Any] = {
+        "version": "v3_candidate_s7b",
+        "v3_reject_toxic_score": False,
+        "v3_block_long_ema_up": True,
+    }
+    defaults.update(overrides)
+    return make_v3_candidate_config(**defaults)
+
+
+def make_v3_candidate_s7c_config(**overrides: Any) -> ConfluenceConfig:
+    """STRATEGY-007 profile C: A ∨ B (toxic score + block LONG EMA-UP).
+
+    Evidence: BACKTEST-015 toxic_score_or_ema_up (best in-sample lift).
+    Research only. High removal rate expected. Not production-ready.
+    """
+    defaults: dict[str, Any] = {
+        "version": "v3_candidate_s7c",
+        "v3_reject_toxic_score": True,
+        "v3_toxic_score_min": 75.0,
+        "v3_toxic_score_max": 84.0,
+        "v3_block_long_ema_up": True,
     }
     defaults.update(overrides)
     return make_v3_candidate_config(**defaults)
