@@ -33,6 +33,12 @@ from xauusdt.features.engine import (  # type: ignore[attr-defined]
     compute_all_features,
 )
 from xauusdt.features.models import MarketStructure
+from xauusdt.strategy.regime import (
+    MarketRegime,
+    RegimeConfig,
+    RegimeSnapshot,
+    classify_regime,
+)
 
 log = logging.getLogger(__name__)
 
@@ -88,6 +94,16 @@ class ConfluenceConfig:
     v3_max_adx: float = 40.0  # Filter out late trend whipsaws (ADX > 40)
     v3_long_bias_penalty: float = 0.0  # Penalty to LONG score to reflect V1 diagnostic bias
 
+    # Optional regime gate (PROJECT-STRATEGY-006 / BACKTEST-013)
+    # Disabled by default so V1/V2/default V3 remain unchanged.
+    v3_regime_gate: bool = False
+    v3_regime_lookback: int = 96  # 24h on 15m
+    v3_regime_efficiency_max: float = 0.30
+    v3_regime_range_pct_min: float = 0.035
+    v3_regime_avg_range_pct_min: float = 0.0012
+    # When True, block entries while label == RANGE_CHOP
+    v3_block_range_chop: bool = True
+
     # Version label for report identification
     version: str = "v1"
 
@@ -134,6 +150,7 @@ class ConfluenceStrategy:
         self._prev_ema_9: float | None = None
         # Structured rejection reasons for v3 diagnostics (last evaluation only)
         self._last_rejection_reasons: list[str] = []
+        self._last_regime: RegimeSnapshot | None = None
 
     def on_candle(self, candle: Candle, position: BacktestPosition | None) -> Signal:
         """Called on each candle.
@@ -416,10 +433,39 @@ class ConfluenceStrategy:
             # Extreme penalty acts as hard disable for LONG entries
             reasons.append("v3_long_entries_disabled")
 
+        # F5: Optional RANGE_CHOP regime gate (PROJECT-STRATEGY-006)
+        if self._config.v3_regime_gate and self._config.v3_block_range_chop:
+            snap = self._classify_current_regime()
+            self._last_regime = snap
+            if snap.label == MarketRegime.RANGE_CHOP:
+                reasons.append(
+                    "v3_regime_range_chop:"
+                    f"eff={snap.efficiency_ratio:.3f},"
+                    f"range={snap.range_pct:.3f},"
+                    f"avg={snap.avg_candle_range_pct:.4f}"
+                )
+
         if reasons:
             self._last_rejection_reasons.extend(reasons)
             return False
         return True
+
+    def _classify_current_regime(self) -> RegimeSnapshot:
+        """Classify regime from strategy candle history (no lookahead)."""
+        cfg = RegimeConfig(
+            lookback=self._config.v3_regime_lookback,
+            efficiency_max=self._config.v3_regime_efficiency_max,
+            range_pct_min=self._config.v3_regime_range_pct_min,
+            avg_range_pct_min=self._config.v3_regime_avg_range_pct_min,
+        )
+        closes = [c.close for c in self._history]
+        highs = [c.high for c in self._history]
+        lows = [c.low for c in self._history]
+        return classify_regime(closes, highs, lows, cfg)
+
+    def get_last_regime(self) -> RegimeSnapshot | None:
+        """Return the last regime snapshot evaluated by the gate (if any)."""
+        return self._last_regime
 
     def _check_exit(
         self, candle: Candle, position: BacktestPosition, features: CandleFeatures
@@ -497,6 +543,8 @@ def make_v3_candidate_config(**overrides: Any) -> ConfluenceConfig:
 
     NOTE: This is a research candidate, not a production-ready profile.
     It showed mixed walk-forward results (weakness in W2 regime).
+    Regime gate remains OFF here so STRATEGY-005 baseline stays reproducible.
+    Use ``make_v3_candidate_regime_gated_config()`` for the gated research profile.
     """
     defaults: dict[str, Any] = {
         "version": "v3_candidate",
@@ -513,6 +561,28 @@ def make_v3_candidate_config(**overrides: Any) -> ConfluenceConfig:
         "min_score": 65.0,
         "sl_atr_multiplier": 2.0,
         "risk_reward_ratio": 2.0,
+        "v3_regime_gate": False,
     }
     defaults.update(overrides)
     return ConfluenceConfig(**defaults)
+
+
+def make_v3_candidate_regime_gated_config(**overrides: Any) -> ConfluenceConfig:
+    """v3_candidate + RANGE_CHOP entry gate (PROJECT-STRATEGY-006).
+
+    Research profile only. Blocks new entries while the price path is classified
+    as high-range low-efficiency chop (BACKTEST-013 W2 failure mode).
+
+    Does not change production defaults or ungated v3_candidate.
+    """
+    defaults: dict[str, Any] = {
+        "version": "v3_candidate_regime_gated",
+        "v3_regime_gate": True,
+        "v3_block_range_chop": True,
+        "v3_regime_lookback": 96,
+        "v3_regime_efficiency_max": 0.30,
+        "v3_regime_range_pct_min": 0.035,
+        "v3_regime_avg_range_pct_min": 0.0012,
+    }
+    defaults.update(overrides)
+    return make_v3_candidate_config(**defaults)
