@@ -1,0 +1,76 @@
+{
+  "version_id": "ds_xau_15m_180d_v1",
+  "task_id": "PROJECT-DATA-010",
+  "created_at": "2026-08-04T05:38:52.516002+00:00",
+  "symbol": "XAU-USDT-SWAP",
+  "granularity": "15m",
+  "source": "okx-public-rest-subset",
+  "start_time": "2026-01-16T00:00:00+00:00",
+  "end_time": "2026-07-15T00:00:00+00:00",
+  "candle_count": 17280,
+  "gap_count": 0,
+  "duplicate_count": 0,
+  "continuity_valid": true,
+  "coverage_pct": 100.0,
+  "first_candle": "2026-01-16T00:00:00+00:00",
+  "last_candle": "2026-07-14T23:45:00+00:00",
+  "fingerprint": "783aa27f884199a6",
+  "checksum": "783aa27f884199a6",
+  "quality_checks": {
+    "gap_audit": "pass",
+    "duplicate_audit": "pass",
+    "continuity_audit": "pass",
+    "sample_gaps": [],
+    "rest_vs_db": []
+  },
+  "periods": {
+    "discovery": {
+      "start": "2026-04-16T00:00:00+00:00",
+      "end": "2026-07-15T00:00:00+00:00",
+      "role": "contaminated_design_sample_BT011_016"
+    },
+    "pre_discovery_oos": {
+      "start": "2026-01-16T00:00:00+00:00",
+      "end": "2026-04-16T00:00:00+00:00",
+      "role": "BT017_true_pre_discovery_oos"
+    },
+    "extended_pre_discovery": {
+      "start": "2026-01-16T00:00:00+00:00",
+      "end": "2026-01-16T00:00:00+00:00",
+      "role": "extra_history_before_BT017_oos_for_BT018_multi_regime",
+      "note": "Only if available_start < OOS_PRE_START"
+    },
+    "forward_oos_candidate": {
+      "start": "2026-07-15T00:00:00+00:00",
+      "end": null,
+      "role": "post_discovery_forward_oos_BT019_when_enough_days",
+      "note": "Do not use for edge verdict until >=30-60d post-discovery"
+    },
+    "available_span": {
+      "start": "2026-01-16T00:00:00+00:00",
+      "end": "2026-07-15T00:00:00+00:00"
+    }
+  },
+  "backfill": {
+    "subset_of": "docs/datasets/ds_xau_15m_365d_v1.json",
+    "pre_extension_audit": {
+      "valid": true,
+      "actual_count": 17280,
+      "gap_count": 0,
+      "duplicate_count": 0,
+      "sample_gaps": [],
+      "first": "2026-01-16T00:00:00+00:00",
+      "last": "2026-07-14T23:45:00+00:00",
+      "expected_count_span": 17280,
+      "coverage_pct": 100.0,
+      "seconds": 900
+    }
+  },
+  "notes": [
+    "Frozen 180d research window (BT-017 span).",
+    "Subset of extended store; not a separate physical table.",
+    "Pre-extension snapshot counts recorded for integrity check."
+  ],
+  "strategy_unchanged": true,
+  "production_ready": false
+}
