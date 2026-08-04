@@ -65,6 +65,7 @@ class PaperRunner:
         fetch_candles: Any | None = None,
         poll_interval: int = 120,
         risk_engine: Any | None = None,
+        monitor: Any | None = None,
     ) -> None:
         self._strategy = strategy
         self._store = store
@@ -72,7 +73,8 @@ class PaperRunner:
         self._commit = commit
         self._cfg = paper_cfg or PaperConfig()
         self._risk = risk_engine  # RiskEngine | None
-        self._harness = PaperHarness(strategy, self._cfg, risk_engine=self._risk)
+        self._monitor = monitor  # MonitoringService | None (observation-only)
+        self._harness = PaperHarness(strategy, self._cfg, risk_engine=self._risk, monitor=monitor)
         self._fetch = fetch_candles
         self._poll_interval = poll_interval
         self._running = False
@@ -119,6 +121,14 @@ class PaperRunner:
             self._cfg.mode.value,
             len(processed),
         )
+        # observation-only monitoring: run-start + initial heartbeat
+        if self._monitor is not None:
+            self._monitor.run_started(self._run_id, self._cfg.mode.value)
+            self._push_heartbeat()
+        # track last-success for recovery detection
+        consecutive_err = 0
+        total_err = 0
+        last_ok = False
         while self._running:
             if max_cycles is not None and cycle >= max_cycles:
                 log.info("Reached max_cycles=%d. Stopping.", max_cycles)
@@ -184,13 +194,67 @@ class PaperRunner:
                     len(fresh),
                     fresh[-1].open_time.isoformat(),
                 )
+                if self._monitor is not None:
+                    consecutive_err = 0
+                    if last_ok is False and total_err > 0:
+                        last_ok = True
+                    self._push_heartbeat(consecutive_err=consecutive_err, total_err=total_err)
             except asyncio.CancelledError:
                 log.info("PaperRunner cancelled")
                 raise
             except Exception:
                 log.exception("Error in poll cycle")
+                total_err += 1
+                consecutive_err += 1
+                if self._monitor is not None:
+                    self._monitor.alert(
+                        self._run_id,
+                        "monitor_collector_error",
+                        "collector poll failed",
+                        "WARNING",
+                        {"consecutive_errors": consecutive_err, "total_errors": total_err},
+                    )
+                    last_ok = False
             await asyncio.sleep(self._poll_interval)
         self._running = False
+        if self._monitor is not None:
+            self._monitor.run_stopped(self._run_id, self._cfg.mode.value, "stopped")
+
+    def _push_heartbeat(self, consecutive_err: int = 0, total_err: int = 0) -> None:
+        """Persist an observation-only heartbeat for the current run."""
+        if self._monitor is None:
+            return
+        state = self._harness.harness_state()
+        hb_state = {
+            "last_processed_candle": state.get("last_processed_candle"),
+            "collector_last_success": _now_utc(),
+            "collector_last_error": None,
+            "collector_consecutive_errors": consecutive_err,
+            "collector_total_errors": total_err,
+            "stale_candle_count": self._harness._monitor_counters.get("stale", 0)
+            if hasattr(self._harness, "_monitor_counters")
+            else 0,
+            "gap_event_count": self._harness._monitor_counters.get("gap", 0)
+            if hasattr(self._harness, "_monitor_counters")
+            else 0,
+            "duplicate_attempt_count": self._harness._monitor_counters.get("dup", 0)
+            if hasattr(self._harness, "_monitor_counters")
+            else 0,
+            "database_error_count": 0,
+            "position_open": state.get("side") != "",
+            "position_side": state.get("side") or "",
+            "current_equity": self._harness.balance,
+            "last_error_message": "",
+        }
+        self._monitor.heartbeat(
+            self._run_id,
+            self._cfg.mode.value,
+            hb_state,
+            strategy_label=self._harness.strategy_version,
+            config_hash=self._harness.config_hash,
+            commit_sha=self._commit,
+            db_path=str(self._store._path),
+        )
 
     def stop(self) -> None:
         self._running = False

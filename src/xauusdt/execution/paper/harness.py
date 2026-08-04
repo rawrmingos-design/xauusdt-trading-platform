@@ -82,10 +82,12 @@ class PaperHarness:
         strategy: ConfluenceStrategy,
         paper_cfg: PaperConfig | None = None,
         risk_engine: Any | None = None,
+        monitor: Any | None = None,
     ) -> None:
         self._strategy = strategy
         self._cfg = paper_cfg or PaperConfig()
         self._risk = risk_engine  # RiskEngine | None (None = risk disabled)
+        self._monitor = monitor  # MonitoringService | None (observation-only)
         self._position: SimPosition | None = None
         self._balance = self._cfg.initial_balance
         self._peak_balance = self._cfg.initial_balance
@@ -102,6 +104,7 @@ class PaperHarness:
         self._commit = "unknown"
         self._config_hash = ""
         self._pending_parent_pnl: dict[str, float] = {}  # entry_time -> net pnl
+        self._monitor_counters: dict[str, int] = {"stale": 0, "gap": 0, "dup": 0}
 
     # ------------------------------------------------------------------ runs
 
@@ -537,15 +540,48 @@ class PaperHarness:
         delta = candle.open_time - self._last_candle_time
         stale = delta > timedelta(seconds=self._cfg.stale_candle_seconds)
         gap = delta > timedelta(seconds=self._cfg.max_candle_gap_seconds)
+        dup = delta == timedelta(0)
         self._entry_blocked = stale or gap
-        if self._entry_blocked:
+        if stale or gap or dup:
             log.warning(
-                "Continuity guard on %s: delta=%s stale=%s gap=%s",
+                "Continuity guard on %s: delta=%s stale=%s gap=%s dup=%s",
                 candle.open_time.isoformat(),
                 delta,
                 stale,
                 gap,
+                dup,
             )
+        # observation-only monitoring of continuity anomalies
+        # gap implies stale (gap threshold > stale threshold): report the
+        # more specific code first so candle_gap events are actually emitted
+        if self._monitor is not None and self._run_id:
+            if dup:
+                self._monitor_counters["dup"] += 1
+                self._monitor.record(
+                    self._run_id,
+                    "monitor_duplicate_attempt",
+                    f"duplicate candle {candle.open_time.isoformat()}",
+                    "WARNING",
+                    {},
+                )
+            elif gap:
+                self._monitor_counters["gap"] += 1
+                self._monitor.record(
+                    self._run_id,
+                    "monitor_candle_gap",
+                    f"candle gap {delta} at {candle.open_time.isoformat()}",
+                    "WARNING",
+                    {"delta_seconds": int(delta.total_seconds())},
+                )
+            elif stale:
+                self._monitor_counters["stale"] += 1
+                self._monitor.record(
+                    self._run_id,
+                    "monitor_stale_candle",
+                    f"candle {candle.open_time.isoformat()} stale (delta {delta})",
+                    "WARNING",
+                    {"delta_seconds": int(delta.total_seconds())},
+                )
 
     # ------------------------------------------------------------- equity
 
