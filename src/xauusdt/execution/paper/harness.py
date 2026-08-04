@@ -81,9 +81,11 @@ class PaperHarness:
         self,
         strategy: ConfluenceStrategy,
         paper_cfg: PaperConfig | None = None,
+        risk_engine: Any | None = None,
     ) -> None:
         self._strategy = strategy
         self._cfg = paper_cfg or PaperConfig()
+        self._risk = risk_engine  # RiskEngine | None (None = risk disabled)
         self._position: SimPosition | None = None
         self._balance = self._cfg.initial_balance
         self._peak_balance = self._cfg.initial_balance
@@ -99,6 +101,7 @@ class PaperHarness:
         self._run_id = ""
         self._commit = "unknown"
         self._config_hash = ""
+        self._pending_parent_pnl: dict[str, float] = {}  # entry_time -> net pnl
 
     # ------------------------------------------------------------------ runs
 
@@ -116,6 +119,7 @@ class PaperHarness:
         self._orders = []
         self._exits = []
         self._candles_processed = 0
+        self._pending_parent_pnl = {}
         self._run_id = run_id
         self._commit = commit
         self._config_hash = config_hash(self._strategy._config)
@@ -283,16 +287,47 @@ class PaperHarness:
     # ------------------------------------------------------------- positions
 
     def _open_position(self, candle: Candle, side: Side) -> bool:
-        """Open a position. Returns True when a new position was opened."""
+        """Open a position. Returns True when a new position was opened.
+
+        When a risk engine is attached, entry is gated by risk evaluation:
+        approved -> order created with risk-computed quantity; rejected ->
+        no order, rejection recorded (signal is recorded by the caller with
+        executed=False).
+        """
         if self._position is not None:
             return False
-        position_value = self._balance * self._cfg.max_position_size_pct
-        quantity = position_value / candle.close if candle.close > 0 else 0.0
+
         entry_price = _apply_slippage(candle.close, side, self._cfg.slippage_bps)
+        sl_price, tp_price, partial_tp = self._compute_prices(candle, side, entry_price)
+
+        # ---- risk gate: evaluation + sizing before order creation ----
+        if self._risk is not None:
+            decision = self._risk.evaluate_entry(
+                candle_time=candle.open_time,
+                signal_type=side.value,
+                entry_price=entry_price,
+                stop_price=sl_price or 0.0,
+                side=side.value,
+                equity=self._balance,
+                open_positions=1 if self._position is not None else 0,
+            )
+            if not decision.approved:
+                log.info(
+                    "RISK REJECT %s %s codes=%s",
+                    candle.open_time.isoformat(),
+                    side.value,
+                    decision.rejection_codes,
+                )
+                # do not create an order or position; caller records signal
+                return False
+            quantity = decision.quantity
+        else:
+            # legacy sizing (no risk engine): percent-of-equity position
+            position_value = self._balance * self._cfg.max_position_size_pct
+            quantity = position_value / candle.close if candle.close > 0 else 0.0
+
         fee = entry_price * quantity * self._cfg.fee_rate
         self._balance -= fee
-
-        sl_price, tp_price, partial_tp = self._compute_prices(candle, side, entry_price)
 
         self._position = SimPosition(
             run_id=self._run_id,
@@ -422,6 +457,21 @@ class PaperHarness:
             partial,
         )
 
+        # ---- risk accounting: net realized PnL per parent trade ----
+        if self._risk is not None:
+            key = pos.entry_candle_time.isoformat()
+            prev = self._pending_parent_pnl.get(key, 0.0)
+            self._pending_parent_pnl[key] = prev + pnl
+            if not partial and not reason == SimExitReason.PARTIAL_TP:
+                net = self._pending_parent_pnl.pop(key, 0.0)
+                self._risk.record_realized_pnl(
+                    candle_time=candle.open_time,
+                    entry_candle_time=pos.entry_candle_time,
+                    realized_pnl=net,
+                    equity=self._balance,
+                    parent_closed=True,
+                )
+
     # ------------------------------------------------------------- signals
 
     def _record_signal(
@@ -548,6 +598,7 @@ class PaperHarness:
             "peak_balance_snapshot": self._peak_balance,
             "max_drawdown_snapshot": self._max_drawdown,
             "candles_processed": self._candles_processed,
+            "pending_parent_pnl": json.dumps(self._pending_parent_pnl),
             "last_processed_candle": (
                 self._last_candle.open_time.isoformat() if self._last_candle else None
             ),
@@ -584,6 +635,12 @@ class PaperHarness:
         self._peak_balance = float(state.get("peak_balance_snapshot", self._peak_balance))
         self._max_drawdown = float(state.get("max_drawdown_snapshot", self._max_drawdown))
         self._candles_processed = int(state.get("candles_processed", 0))
+        raw_pending = state.get("pending_parent_pnl")
+        if isinstance(raw_pending, str) and raw_pending:
+            try:
+                self._pending_parent_pnl = json.loads(raw_pending)
+            except (ValueError, TypeError):
+                self._pending_parent_pnl = {}
         if not state.get("side"):
             return
         from datetime import datetime as _dt

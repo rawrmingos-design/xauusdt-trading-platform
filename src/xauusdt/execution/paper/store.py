@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS paper_positions (
     balance_snapshot REAL NOT NULL,
     peak_balance_snapshot REAL NOT NULL,
     max_drawdown_snapshot REAL NOT NULL DEFAULT 0,
+    pending_parent_pnl TEXT NOT NULL DEFAULT '{}',
     last_processed_candle TEXT,
     updated_at TEXT NOT NULL
 );
@@ -141,6 +142,11 @@ class PaperStore:
         if "executed" not in cols:
             self._conn.execute(
                 "ALTER TABLE paper_signals ADD COLUMN executed INTEGER NOT NULL DEFAULT 0"
+            )
+        pcols = {r[1] for r in self._conn.execute("PRAGMA table_info(paper_positions)")}
+        if "pending_parent_pnl" not in pcols:
+            self._conn.execute(
+                "ALTER TABLE paper_positions ADD COLUMN pending_parent_pnl TEXT NOT NULL DEFAULT '{}'"
             )
 
     # ------------------------------------------------------------- helpers
@@ -366,12 +372,12 @@ class PaperStore:
         with self._conn:
             self._conn.execute(
                 """INSERT OR REPLACE INTO paper_positions
-                   (run_id, symbol, entry_candle_time, entry_price, side, quantity,
-                    stop_loss_price, take_profit_price, partial_tp_price,
-                    partial_tp_ratio, is_partial_closed, max_mfe_price, max_mae_price,
-                    balance_snapshot, peak_balance_snapshot, max_drawdown_snapshot,
-                    last_processed_candle, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                  (run_id, symbol, entry_candle_time, entry_price, side, quantity,
+                   stop_loss_price, take_profit_price, partial_tp_price,
+                   partial_tp_ratio, is_partial_closed, max_mfe_price, max_mae_price,
+                   balance_snapshot, peak_balance_snapshot, max_drawdown_snapshot,
+                   pending_parent_pnl, last_processed_candle, updated_at)
+                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     state["run_id"],
                     state.get("symbol", "XAU-USDT-SWAP"),
@@ -389,6 +395,7 @@ class PaperStore:
                     state.get("balance_snapshot", 0.0),
                     state.get("peak_balance_snapshot", 0.0),
                     state.get("max_drawdown_snapshot", 0.0),
+                    state.get("pending_parent_pnl", "{}"),
                     state.get("last_processed_candle"),
                     datetime.now(UTC).isoformat(),
                 ),
