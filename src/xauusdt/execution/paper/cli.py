@@ -67,6 +67,21 @@ def _build_parser() -> argparse.ArgumentParser:
     rp.add_argument("--run-id", required=True, help="run_id whose risk state to inspect/mutate")
     rp.add_argument("--reason", default="", help="reason (required for kill-on/kill-off)")
     rp.add_argument("--verbose", action="store_true", help="debug logging")
+
+    # monitoring subcommand (PROJECT-MONITORING-001)
+    mp = sub.add_parser("monitor", help="runtime health monitoring & alerts")
+    mp.add_argument(
+        "--db", default=None, help="SQLite path (default ~/.hermes/xauusdt_paper/paper_runs.db)"
+    )
+    mp.add_argument(
+        "action",
+        choices=["health", "events", "alerts", "report", "test-telegram"],
+        help="monitor action",
+    )
+    mp.add_argument("--run-id", required=True, help="run_id to inspect (health/events/report)")
+    mp.add_argument("--limit", type=int, default=50, help="max events to list (events)")
+    mp.add_argument("--out-dir", default="docs/reports", help="report output dir (report)")
+    mp.add_argument("--verbose", action="store_true", help="debug logging")
     return parser
 
 
@@ -174,10 +189,72 @@ def _open_positions_for(db_path: str | None, run_id: str) -> int:
     return 1 if pos and pos.get("side") else 0
 
 
+def _monitor_service(db_path: str | None) -> Any:
+    """Build a MonitoringService bound to the same SQLite file."""
+    from xauusdt.monitoring import MonitoringService, MonitorStore
+
+    store = MonitorStore(db_path)
+    return MonitoringService(store)
+
+
+def _cmd_monitor(args: argparse.Namespace) -> int:
+    """Handle `xauusdt-paper monitor ...` (health/events/alerts/report/test)."""
+    from xauusdt.monitoring import write_daily_report
+
+    svc = _monitor_service(args.db)
+    action = args.action
+    run_id = args.run_id
+    if action == "health":
+        h = svc.evaluate_health(run_id)
+        print(
+            f"run={run_id} alive={h['runtime_alive']} "
+            f"heartbeat_age={h['heartbeat_age_seconds']}s "
+            f"equity=${h['current_equity']:,.2f} "
+            f"position={h['position_side'] or 'flat'} "
+            f"issues={','.join(h['issues']) or 'none'}"
+        )
+        return 0
+    if action == "events":
+        for ev in svc._store.recent_events(run_id, limit=args.limit):
+            print(
+                f"{ev['timestamp']} {ev['severity']:8s} {ev['code']}"
+                + (f" — {ev['message']}" if ev.get("message") else "")
+            )
+        return 0
+    if action == "alerts":
+        alerts = [a for a in svc._store.active_alerts() if a["run_id"] == run_id]
+        if not alerts:
+            print(f"run={run_id}: no active alerts")
+            return 0
+        for a in alerts:
+            print(f"{a['code']} ({a['severity']}) first={a['first_seen']} last={a['last_seen']}")
+        return 0
+    if action == "report":
+        jp, mp = write_daily_report(svc._store, run_id, args.out_dir, prefix="monitor")
+        print(f"JSON: {jp}")
+        print(f"Markdown: {mp}")
+        return 0
+    if action == "test-telegram":
+        from xauusdt.monitoring import TelegramConfig, TelegramNotifier
+
+        notifier = TelegramNotifier(svc._store, TelegramConfig())
+        ok, detail = notifier.notify(run_id, "monitor_test", "INFO", "test message from CLI", {})
+        print(f"delivered={ok} detail={detail}")
+        return 0 if ok else 1
+    return 1
+
+
 async def _async_main(args: argparse.Namespace) -> int:
     command = args.command
     if command == "risk":
         return _cmd_risk(args)
+    if command == "monitor":
+        from xauusdt.monitoring import TelegramConfig
+
+        # build with env-driven Telegram config (optional, disabled by default)
+        msvc = _monitor_service(args.db)
+        msvc.tg_cfg = TelegramConfig()
+        return _cmd_monitor(args)
 
     mode = SimMode.SHADOW if command == "shadow" else SimMode.PAPER
     cfg = PaperConfig(mode=mode, max_open_positions=1)
@@ -196,6 +273,8 @@ async def _async_main(args: argparse.Namespace) -> int:
 
     # attach risk engine in both shadow and paper modes
     risk_engine = _risk_engine(args.db, run_id)
+    # observation-only monitoring service (Telegram optional)
+    monitor = _monitor_service(args.db)
 
     if args.once:
         # deterministic single pass over stored candles (frozen dataset selection)
@@ -207,8 +286,10 @@ async def _async_main(args: argparse.Namespace) -> int:
             return 1
         from xauusdt.execution.paper.harness import PaperHarness
 
-        harness = PaperHarness(strategy, cfg, risk_engine=risk_engine)
+        harness = PaperHarness(strategy, cfg, risk_engine=risk_engine, monitor=monitor)
+        monitor.run_started(run_id, mode.value)
         result = await run_once(harness, store, candles, run_id, commit, resume=True)
+        monitor.run_stopped(run_id, mode.value, "once-complete")
         path = write_daily_report(result, args.out_dir, prefix=f"paper_{mode.value}_once")
         print(
             f"Run {result.run_id}: {len(candles)} candles -> {result.trade_count} trades, PnL ${result.total_pnl:,.2f}"
@@ -228,6 +309,7 @@ async def _async_main(args: argparse.Namespace) -> int:
         paper_cfg=cfg,
         poll_interval=args.poll_interval,
         risk_engine=risk_engine,
+        monitor=monitor,
     )
     install_signal_handlers(runner)
     await runner.run_loop(max_cycles=args.max_cycles)
