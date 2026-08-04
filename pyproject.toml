@@ -46,6 +46,7 @@ build-backend = "hatchling.build"
 
 [project.scripts]
 xauusdt = "xauusdt.cli:main"
+xauusdt-paper = "xauusdt.execution.paper.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

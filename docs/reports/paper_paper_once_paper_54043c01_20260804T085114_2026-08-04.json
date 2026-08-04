@@ -1,0 +1,31 @@
+{
+  "generated_at": "2026-08-04T08:53:42.295381+00:00",
+  "run_id": "paper_54043c01_20260804T085114",
+  "mode": "paper",
+  "strategy_version": "v3_candidate",
+  "config_hash": "f3c25a5a56510c6a",
+  "commit_sha": "54043c012e3789d4afca90834b17cda3a038e04e",
+  "candles_processed": 35040,
+  "initial_balance": 10000.0,
+  "final_balance": 658.7219673943346,
+  "total_pnl": -9341.278032605665,
+  "trade_count": 3670,
+  "win_rate": 0.5248,
+  "profit_factor": 1.0351,
+  "max_drawdown": 9348.565920304221,
+  "max_drawdown_pct": 0.9342,
+  "long_trades": 2028,
+  "long_pnl": 642.88,
+  "short_trades": 1642,
+  "short_pnl": -287.34,
+  "signals_count": 33498,
+  "executed_count": 2881,
+  "rejected_count": 1755,
+  "exit_reasons": {
+    "SL": 1159,
+    "PARTIAL_TP": 789,
+    "TP": 383,
+    "SIGNAL": 1338,
+    "EOL": 1
+  }
+}
