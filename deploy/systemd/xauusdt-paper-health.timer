@@ -1,0 +1,12 @@
+[Unit]
+Description=Run XAUUSDT paper health check every 2 minutes (PROJECT-OPS-001)
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=2min
+Unit=xauusdt-paper-health.service
+# Persistent = replay missed runs after boot.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

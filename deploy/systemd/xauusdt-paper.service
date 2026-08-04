@@ -1,0 +1,49 @@
+[Unit]
+Description=XAUUSDT continuous paper runtime (PROJECT-OPS-001, forward observation)
+Documentation=https://github.com/rawrmingos-design/xauusdt-trading-platform
+# Start only after the filesystem and network are available.
+After=network-online.target
+Wants=network-online.target
+# Bounded restart: max 10 attempts within 5 minutes, then systemd gives up and
+# the health timer + Telegram alerts surface it.
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+# Dedicated unprivileged user — never run as root.
+User=xauusdt
+Group=xauusdt
+# Fixed persistent run_id for the forward paper observation cycle.
+EnvironmentFile=/etc/xauusdt/paper.env
+# The runtime binary: use the venv's console script; override with XAUUSDT_PAPER_CMD in paper.env if needed.
+ExecStart=/opt/xauusdt/.venv/bin/xauusdt-paper paper \
+    --db /var/lib/xauusdt/paper_runs.db \
+    --run-id ${XAUUSDT_RUN_ID} \
+    --poll-interval ${XAUUSDT_POLL_INTERVAL} \
+    --out-dir /var/lib/xauusdt/reports
+# Bounded restart: on-failure, 15s delay (burst limits are in [Unit]).
+Restart=on-failure
+RestartSec=15
+# Graceful SIGTERM shutdown; the runtime persists state on signal.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+# Hardening (systemd-analyze security baseline).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/xauusdt /var/backups/xauusdt
+RestrictSUIDSGID=true
+LockPersonality=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+# No network access is needed for secrets; the collector uses outbound HTTPS only.
+# (Leave uncommented to allow OKX REST polling.)
+# PrivateNetwork=true
+
+[Install]
+WantedBy=multi-user.target

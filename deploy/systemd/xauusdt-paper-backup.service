@@ -1,0 +1,15 @@
+[Unit]
+Description=XAUUSDT paper daily backup (PROJECT-OPS-001)
+After=xauusdt-paper.service
+
+[Service]
+Type=oneshot
+User=xauusdt
+Group=xauusdt
+EnvironmentFile=/etc/xauusdt/paper.env
+# Online VACUUM INTO backup while the runtime stays live + integrity check.
+ExecStart=/opt/xauusdt/bin/xauusdt-backup.sh \
+    --db /var/lib/xauusdt/paper_runs.db \
+    --out /var/backups/xauusdt \
+    --run-id ${XAUUSDT_RUN_ID} \
+    --retention 30
