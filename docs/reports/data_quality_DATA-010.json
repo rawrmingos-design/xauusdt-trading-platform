@@ -1,0 +1,143 @@
+{
+  "task_id": "PROJECT-DATA-010",
+  "generated_at": "2026-08-04T05:38:52.520499+00:00",
+  "symbol": "XAU-USDT-SWAP",
+  "target_days": 365,
+  "target_start": "2025-07-15T00:00:00+00:00",
+  "target_end": "2026-07-15T00:00:00+00:00",
+  "skip_backfill": false,
+  "backfill": {
+    "15m": {
+      "exchange": "okx",
+      "symbol": "XAU-USDT-SWAP",
+      "granularity": "15m",
+      "start_time": "2025-07-15T00:00:00+00:00",
+      "end_time": "2026-07-15T00:00:00+00:00",
+      "downloaded_count": 35040,
+      "stored_count": 35040,
+      "gap_count": 0,
+      "dry_run": false,
+      "status": "success"
+    },
+    "1H": {
+      "exchange": "okx",
+      "symbol": "XAU-USDT-SWAP",
+      "granularity": "1H",
+      "start_time": "2025-07-15T00:00:00+00:00",
+      "end_time": "2026-07-15T00:00:00+00:00",
+      "downloaded_count": 8760,
+      "stored_count": 8760,
+      "gap_count": 0,
+      "dry_run": false,
+      "status": "success"
+    }
+  },
+  "audits": {
+    "15m": {
+      "count": 35040,
+      "first": "2025-07-15T00:00:00+00:00",
+      "last": "2026-07-14T23:45:00+00:00",
+      "gap_count": 0,
+      "duplicate_count": 0,
+      "continuity_valid": true,
+      "coverage_pct": 100.0,
+      "db_min": "2025-07-15 00:00:00+00:00",
+      "db_max": "2026-07-14 23:45:00+00:00"
+    },
+    "1H": {
+      "count": 8760,
+      "first": "2025-07-15T00:00:00+00:00",
+      "last": "2026-07-14T23:00:00+00:00",
+      "gap_count": 0,
+      "duplicate_count": 0,
+      "continuity_valid": true,
+      "coverage_pct": 100.0,
+      "db_min": "2025-07-15 00:00:00+00:00",
+      "db_max": "2026-07-14 23:00:00+00:00"
+    }
+  },
+  "rest_vs_db": {
+    "15m": [
+      {
+        "sample_time": "2025-07-16T00:00:00+00:00",
+        "status": "pass",
+        "okx_n": 100,
+        "db_matched": 96,
+        "mismatches": 0,
+        "mismatch_details": []
+      },
+      {
+        "sample_time": "2026-01-13T11:52:30+00:00",
+        "status": "pass",
+        "okx_n": 100,
+        "db_matched": 100,
+        "mismatches": 0,
+        "mismatch_details": []
+      },
+      {
+        "sample_time": "2026-07-14T17:45:00+00:00",
+        "status": "pass",
+        "okx_n": 100,
+        "db_matched": 100,
+        "mismatches": 0,
+        "mismatch_details": []
+      }
+    ],
+    "1H": [
+      {
+        "sample_time": "2025-07-16T00:00:00+00:00",
+        "status": "pass",
+        "okx_n": 100,
+        "db_matched": 24,
+        "mismatches": 0,
+        "mismatch_details": []
+      },
+      {
+        "sample_time": "2026-01-13T11:30:00+00:00",
+        "status": "pass",
+        "okx_n": 100,
+        "db_matched": 100,
+        "mismatches": 0,
+        "mismatch_details": []
+      },
+      {
+        "sample_time": "2026-07-14T17:00:00+00:00",
+        "status": "pass",
+        "okx_n": 100,
+        "db_matched": 100,
+        "mismatches": 0,
+        "mismatch_details": []
+      }
+    ]
+  },
+  "manifests": {
+    "15m": "docs/datasets/ds_xau_15m_365d_v1.json",
+    "1H": "docs/datasets/ds_xauusdtswap_1H_365d_v1.json",
+    "15m_180d": "docs/datasets/ds_xau_15m_180d_v1.json"
+  },
+  "pre_extension_180d": {
+    "15m": {
+      "count": 17280,
+      "gaps": 0,
+      "duplicates": 0
+    },
+    "1H": {
+      "count": 2160,
+      "gaps": 0,
+      "duplicates": 0
+    }
+  },
+  "strategy_unchanged": true,
+  "known_limitations": [
+    "OKX public history-candles limited to 100 per request; pagination required.",
+    "OKX may not retain full 365d for every instrument/granularity.",
+    "Dataset versions are logical freezes (manifest + DB range), not separate DB clones.",
+    "Forward post-discovery window still short (~19d as of early Aug 2026) \u2014 not for edge verdict.",
+    "No strategy re-fit or promotion from this data task."
+  ],
+  "recommended_next_steps": [
+    "PROJECT-BACKTEST-018: multi-regime OOS on extended dataset, fixed v3_candidate vs s7b, no re-fit.",
+    "PROJECT-BACKTEST-019: forward OOS harness post-discovery (smoke only until 30-60d).",
+    "Keep collecting live 15m candles so forward window grows."
+  ]
+}

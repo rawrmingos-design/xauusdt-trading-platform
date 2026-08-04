@@ -1,0 +1,40 @@
+{
+  "selected_at": "2026-08-04T12:39:10.931232+07:00",
+  "version_id": "ds_xau_15m_365d_v1",
+  "manifest_path": "docs/datasets/ds_xau_15m_365d_v1.json",
+  "symbol": "XAU-USDT-SWAP",
+  "granularity": "15m",
+  "start_time": "2025-07-15T00:00:00+00:00",
+  "end_time": "2026-07-15T00:00:00+00:00",
+  "candle_count": 35040,
+  "fingerprint": "35008ecb67b095c0",
+  "periods": {
+    "discovery": {
+      "start": "2026-04-16T00:00:00+00:00",
+      "end": "2026-07-15T00:00:00+00:00",
+      "role": "contaminated_design_sample_BT011_016"
+    },
+    "pre_discovery_oos": {
+      "start": "2026-01-16T00:00:00+00:00",
+      "end": "2026-04-16T00:00:00+00:00",
+      "role": "BT017_true_pre_discovery_oos"
+    },
+    "extended_pre_discovery": {
+      "start": "2025-07-15T00:00:00+00:00",
+      "end": "2026-01-16T00:00:00+00:00",
+      "role": "extra_history_before_BT017_oos_for_BT018_multi_regime",
+      "note": "Only if available_start < OOS_PRE_START"
+    },
+    "forward_oos_candidate": {
+      "start": "2026-07-15T00:00:00+00:00",
+      "end": null,
+      "role": "post_discovery_forward_oos_BT019_when_enough_days",
+      "note": "Do not use for edge verdict until >=30-60d post-discovery"
+    },
+    "available_span": {
+      "start": "2025-07-15T00:00:00+00:00",
+      "end": "2026-07-15T00:00:00+00:00"
+    }
+  },
+  "note": "Logical selection only. Backtests should filter candles to [start_time, end_time) from the shared candle store."
+}

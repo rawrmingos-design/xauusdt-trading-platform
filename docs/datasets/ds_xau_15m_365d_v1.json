@@ -1,0 +1,98 @@
+{
+  "version_id": "ds_xau_15m_365d_v1",
+  "task_id": "PROJECT-DATA-010",
+  "created_at": "2026-08-04T05:38:52.099591+00:00",
+  "symbol": "XAU-USDT-SWAP",
+  "granularity": "15m",
+  "source": "okx-public-rest",
+  "start_time": "2025-07-15T00:00:00+00:00",
+  "end_time": "2026-07-15T00:00:00+00:00",
+  "candle_count": 35040,
+  "gap_count": 0,
+  "duplicate_count": 0,
+  "continuity_valid": true,
+  "coverage_pct": 100.0,
+  "first_candle": "2025-07-15T00:00:00+00:00",
+  "last_candle": "2026-07-14T23:45:00+00:00",
+  "fingerprint": "35008ecb67b095c0",
+  "checksum": "35008ecb67b095c0",
+  "quality_checks": {
+    "gap_audit": "pass",
+    "duplicate_audit": "pass",
+    "continuity_audit": "pass",
+    "sample_gaps": [],
+    "rest_vs_db": [
+      {
+        "sample_time": "2025-07-16T00:00:00+00:00",
+        "status": "pass",
+        "okx_n": 100,
+        "db_matched": 96,
+        "mismatches": 0,
+        "mismatch_details": []
+      },
+      {
+        "sample_time": "2026-01-13T11:52:30+00:00",
+        "status": "pass",
+        "okx_n": 100,
+        "db_matched": 100,
+        "mismatches": 0,
+        "mismatch_details": []
+      },
+      {
+        "sample_time": "2026-07-14T17:45:00+00:00",
+        "status": "pass",
+        "okx_n": 100,
+        "db_matched": 100,
+        "mismatches": 0,
+        "mismatch_details": []
+      }
+    ]
+  },
+  "periods": {
+    "discovery": {
+      "start": "2026-04-16T00:00:00+00:00",
+      "end": "2026-07-15T00:00:00+00:00",
+      "role": "contaminated_design_sample_BT011_016"
+    },
+    "pre_discovery_oos": {
+      "start": "2026-01-16T00:00:00+00:00",
+      "end": "2026-04-16T00:00:00+00:00",
+      "role": "BT017_true_pre_discovery_oos"
+    },
+    "extended_pre_discovery": {
+      "start": "2025-07-15T00:00:00+00:00",
+      "end": "2026-01-16T00:00:00+00:00",
+      "role": "extra_history_before_BT017_oos_for_BT018_multi_regime",
+      "note": "Only if available_start < OOS_PRE_START"
+    },
+    "forward_oos_candidate": {
+      "start": "2026-07-15T00:00:00+00:00",
+      "end": null,
+      "role": "post_discovery_forward_oos_BT019_when_enough_days",
+      "note": "Do not use for edge verdict until >=30-60d post-discovery"
+    },
+    "available_span": {
+      "start": "2025-07-15T00:00:00+00:00",
+      "end": "2026-07-15T00:00:00+00:00"
+    }
+  },
+  "backfill": {
+    "exchange": "okx",
+    "symbol": "XAU-USDT-SWAP",
+    "granularity": "15m",
+    "start_time": "2025-07-15T00:00:00+00:00",
+    "end_time": "2026-07-15T00:00:00+00:00",
+    "downloaded_count": 35040,
+    "stored_count": 35040,
+    "gap_count": 0,
+    "dry_run": false,
+    "status": "success"
+  },
+  "notes": [
+    "PROJECT-DATA-010 freeze. Strategy configs unchanged.",
+    "Do not re-fit strategies on this dataset in this task.",
+    "180d research span remains a valid subset of extended history."
+  ],
+  "strategy_unchanged": true,
+  "production_ready": false
+}
