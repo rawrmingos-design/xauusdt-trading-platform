@@ -86,9 +86,31 @@ CREATE TABLE IF NOT EXISTS paper_exits (
     sl_distance REAL NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS paper_positions (
+    run_id TEXT PRIMARY KEY,
+    symbol TEXT NOT NULL,
+    entry_candle_time TEXT NOT NULL,
+    entry_price REAL NOT NULL,
+    side TEXT NOT NULL,
+    quantity REAL NOT NULL,
+    stop_loss_price REAL NOT NULL,
+    take_profit_price REAL NOT NULL,
+    partial_tp_price REAL,
+    partial_tp_ratio REAL NOT NULL,
+    is_partial_closed INTEGER NOT NULL DEFAULT 0,
+    max_mfe_price REAL NOT NULL DEFAULT 0,
+    max_mae_price REAL NOT NULL DEFAULT 0,
+    balance_snapshot REAL NOT NULL,
+    peak_balance_snapshot REAL NOT NULL,
+    max_drawdown_snapshot REAL NOT NULL DEFAULT 0,
+    last_processed_candle TEXT,
+    updated_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_signals_run ON paper_signals(run_id);
 CREATE INDEX IF NOT EXISTS idx_orders_run ON paper_orders(run_id);
 CREATE INDEX IF NOT EXISTS idx_exits_run ON paper_exits(run_id);
+CREATE INDEX IF NOT EXISTS idx_positions_run ON paper_positions(run_id);
 """
 
 
@@ -138,6 +160,74 @@ class PaperStore:
         return self._run_exists(run_id)
 
     # ------------------------------------------------------------ writes
+
+    def append_records(self, result: PaperRunResult) -> None:
+        """Append signals/orders/exits for a continuous batch (no run replace)."""
+        with self._conn:
+            for s in result.signals:
+                self._conn.execute(
+                    """INSERT OR REPLACE INTO paper_signals
+                      (run_id, candle_time, side, signal_type, executed, buy_score, sell_score, entry_price,
+                       strategy_version, config_hash, commit_sha, rejected, rejection_reasons)
+                      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        s.run_id,
+                        s.candle_time.isoformat(),
+                        s.side.value,
+                        s.signal_type,
+                        1 if s.executed else 0,
+                        s.buy_score,
+                        s.sell_score,
+                        s.entry_price,
+                        s.strategy_version,
+                        s.config_hash,
+                        s.commit_sha,
+                        1 if s.rejected else 0,
+                        json.dumps(s.rejection_reasons),
+                    ),
+                )
+            for o in result.orders:
+                self._conn.execute(
+                    """INSERT OR REPLACE INTO paper_orders
+                      (run_id, candle_time, symbol, side, order_type, price, raw_price,
+                       quantity, fee, status)
+                      VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        o.run_id,
+                        o.candle_time.isoformat(),
+                        o.symbol,
+                        o.side.value,
+                        o.order_type,
+                        o.price,
+                        o.raw_price,
+                        o.quantity,
+                        o.fee,
+                        o.status,
+                    ),
+                )
+            for e in result.exits:
+                self._conn.execute(
+                    """INSERT OR REPLACE INTO paper_exits
+                      (run_id, entry_candle_time, exit_candle_time, side, exit_reason,
+                       entry_price, exit_price, quantity, pnl, fee, is_partial,
+                       slippage_cost, sl_distance)
+                      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        e.run_id,
+                        e.entry_candle_time.isoformat(),
+                        e.exit_candle_time.isoformat(),
+                        e.side.value,
+                        e.exit_reason.value,
+                        e.entry_price,
+                        e.exit_price,
+                        e.quantity,
+                        e.pnl,
+                        e.fee,
+                        1 if e.is_partial else 0,
+                        e.slippage_cost,
+                        e.sl_distance,
+                    ),
+                )
 
     def save_run(self, result: PaperRunResult) -> None:
         """Persist a complete run. Overwrites existing same run_id."""
@@ -263,3 +353,111 @@ class PaperStore:
             "SELECT * FROM paper_orders WHERE run_id = ? ORDER BY candle_time", (run_id,)
         )
         return [dict(row) for row in cur.fetchall()]
+
+    # ------------------------------------------------------ position state
+
+    def save_position(self, state: dict[str, Any]) -> None:
+        """Upsert the live state row (equity counters + open position if any).
+
+        When no position is open, `side` is the empty string sentinel and
+        position fields are zeroed; equity counters are always persisted.
+        """
+        side = state.get("side") or ""
+        with self._conn:
+            self._conn.execute(
+                """INSERT OR REPLACE INTO paper_positions
+                   (run_id, symbol, entry_candle_time, entry_price, side, quantity,
+                    stop_loss_price, take_profit_price, partial_tp_price,
+                    partial_tp_ratio, is_partial_closed, max_mfe_price, max_mae_price,
+                    balance_snapshot, peak_balance_snapshot, max_drawdown_snapshot,
+                    last_processed_candle, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    state["run_id"],
+                    state.get("symbol", "XAU-USDT-SWAP"),
+                    state.get("entry_candle_time", ""),
+                    state.get("entry_price", 0.0),
+                    side,
+                    state.get("quantity", 0.0),
+                    state.get("stop_loss_price", 0.0),
+                    state.get("take_profit_price", 0.0),
+                    state.get("partial_tp_price"),
+                    state.get("partial_tp_ratio", 0.0),
+                    1 if state.get("is_partial_closed") else 0,
+                    state.get("max_mfe_price", 0.0),
+                    state.get("max_mae_price", 0.0),
+                    state.get("balance_snapshot", 0.0),
+                    state.get("peak_balance_snapshot", 0.0),
+                    state.get("max_drawdown_snapshot", 0.0),
+                    state.get("last_processed_candle"),
+                    datetime.now(UTC).isoformat(),
+                ),
+            )
+
+    def get_position(self, run_id: str) -> dict[str, Any] | None:
+        cur = self._conn.execute("SELECT * FROM paper_positions WHERE run_id = ?", (run_id,))
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+    def delete_position(self, run_id: str) -> None:
+        with self._conn:
+            self._conn.execute("DELETE FROM paper_positions WHERE run_id = ?", (run_id,))
+
+    def save_run_meta(
+        self,
+        run_id: str,
+        balance: float,
+        peak_balance: float,
+        max_drawdown: float,
+        max_drawdown_pct: float,
+        candles_processed: int,
+        last_processed_candle: str | None,
+    ) -> None:
+        """Upsert run-level continuity counters without touching signals/orders."""
+        with self._conn:
+            self._conn.execute(
+                """UPDATE paper_runs
+                   SET final_balance = ?, max_drawdown = ?, max_drawdown_pct = ?,
+                       candles_processed = ?
+                   WHERE run_id = ?""",
+                (
+                    balance,
+                    max_drawdown,
+                    max_drawdown_pct,
+                    candles_processed,
+                    run_id,
+                ),
+            )
+
+    def ensure_run(
+        self,
+        run_id: str,
+        mode: str,
+        strategy_version: str,
+        config_hash: str,
+        commit_sha: str,
+        initial_balance: float,
+    ) -> None:
+        """Insert a run row if absent (first cycle of a continuous run)."""
+        with self._conn:
+            self._conn.execute(
+                """INSERT OR IGNORE INTO paper_runs
+                   (run_id, mode, strategy_version, config_hash, commit_sha,
+                    candles_processed, initial_balance, final_balance, total_pnl,
+                    max_drawdown, max_drawdown_pct, created_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    run_id,
+                    mode,
+                    strategy_version,
+                    config_hash,
+                    commit_sha,
+                    0,
+                    initial_balance,
+                    initial_balance,
+                    0.0,
+                    0.0,
+                    0.0,
+                    datetime.now(UTC).isoformat(),
+                ),
+            )

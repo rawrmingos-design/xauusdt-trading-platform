@@ -1,0 +1,104 @@
+{
+  "task_id": "PROJECT-PAPER-002",
+  "title": "Validate continuous live polling paper harness",
+  "status": "PASSED",
+  "date": "2026-08-04",
+  "type": "engineering_reliability_test",
+  "not": "strategy_validation",
+  "repository": "rawrmingos-design/xauusdt-trading-platform",
+  "branch": "feat/project-paper-002-continuous-reliability",
+  "symbol": "XAU-USDT-SWAP",
+  "granularity": "15m",
+  "config": "make_v3_candidate_config() unchanged",
+  "acceptance_criteria": {
+    "continuous_shadow_processes_finalized_candles": true,
+    "continuous_paper_processes_finalized_candles": true,
+    "duplicate_candle_processing_no_duplicate_records": true,
+    "restart_same_run_id_resumes_safely": true,
+    "restart_new_run_id_independent": true,
+    "open_position_state_survives_restart": true,
+    "stale_candle_guard_demonstrated": true,
+    "gap_guard_demonstrated": true,
+    "sqlite_migrations_idempotent": true,
+    "daily_reports_generated": true,
+    "no_real_order_path": true,
+    "pytest_passes": "257 passed, 16 skipped",
+    "ruff_check_passes": true,
+    "ruff_format_check_passes": true,
+    "mypy_passes": true
+  },
+  "evidence": {
+    "unit_tests": "tests/unit/test_paper_continuous.py (10 tests)",
+    "full_suite": "257 passed, 16 skipped",
+    "shadow_live": {
+      "run_id": "paper002-shadow-live",
+      "candles_processed": 5,
+      "latest_candle": "2026-08-04T08:15:00+00:00",
+      "signals": 5,
+      "signals_distinct": 5,
+      "restart_duplicates": 0
+    },
+    "paper_live": {
+      "run_id": "paper002-paper-live",
+      "candles_processed": 5,
+      "signals": 5,
+      "signals_distinct": 5,
+      "orders": 0,
+      "restart_duplicates": 0
+    },
+    "crash_restart": {
+      "run_id": "crash-test",
+      "kill": "SIGKILL",
+      "integrity_check": "ok",
+      "signals": 5,
+      "signals_distinct": 5,
+      "positions": 1,
+      "double_positions": 0
+    },
+    "guards": {
+      "stale_candle_blocks_entry": true,
+      "gap_candle_blocks_entry": true,
+      "reason_recorded": "continuity_guard"
+    }
+  },
+  "forward_data_quarantine": {
+    "status": "forward observation, engineering-only, not used for redesign, not used for promotion",
+    "candles_observed": [
+      "2026-08-04T08:00:00+00:00",
+      "2026-08-04T08:15:00+00:00"
+    ]
+  },
+  "run_metadata": {
+    "shadow_run_id": "paper002-shadow-live",
+    "paper_run_id": "paper002-paper-live",
+    "config_hash": "from strategy config (see PR)",
+    "commit_sha": "see PR",
+    "last_processed_candle": "2026-08-04T08:15:00+00:00",
+    "db_path": "~/.hermes/xauusdt_paper/paper_runs.db",
+    "mode": "shadow + paper"
+  },
+  "known_limitations": [
+    "Live smoke window short; no live open position occurred during sample (position recovery proven via fixtures + crash restart)",
+    "save_run (--once) and append_records (continuous) both exist; --once still writes full runs",
+    "SQLite single-writer: one paper process per DB file",
+    "REST polling only; new-candle latency bounded by --poll-interval",
+    "No backfill beyond fetch-limit=5; long downtime could miss candles (gap guard then blocks entries)"
+  ],
+  "recommended_next_steps": [
+    "PROJECT-RISK-001: deterministic risk + position sizing engine",
+    "PROJECT-MONITORING-001: health metrics + Telegram alerts",
+    "Forward OOS checkpoint 2026-09-13"
+  ],
+  "required_outputs": {
+    "pull_request_url": "https://github.com/rawrmingos-design/xauusdt-trading-platform/pull/NN",
+    "validation_report_md": "docs/strategy/PAPER-002-continuous-reliability.md",
+    "validation_report_json": "docs/strategy/PAPER-002-continuous-reliability.json",
+    "shadow_command": "uv run xauusdt-paper shadow --run-id paper002-shadow-live",
+    "paper_command": "uv run xauusdt-paper paper --run-id paper002-paper-live",
+    "restart_test_summary": "Same run ID: 0 duplicates, state restored. New run ID: independent.",
+    "deduplication_summary": "5 signals distinct == 5; candles_processed unchanged after restart",
+    "position_recovery_summary": "Open position restored from paper_positions row; side/price/qty intact (fixture + crash restart)",
+    "stale_and_gap_guard_summary": "Stale and gap candles block entries; continuity_guard reason recorded",
+    "sample_daily_report": "docs/reports/paper002_continuous_paper002-paper-live_2026-08-04.{json,md}"
+  }
+}
