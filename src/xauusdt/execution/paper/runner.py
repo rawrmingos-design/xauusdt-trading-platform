@@ -64,13 +64,15 @@ class PaperRunner:
         paper_cfg: PaperConfig | None = None,
         fetch_candles: Any | None = None,
         poll_interval: int = 120,
+        risk_engine: Any | None = None,
     ) -> None:
         self._strategy = strategy
         self._store = store
         self._run_id = run_id
         self._commit = commit
         self._cfg = paper_cfg or PaperConfig()
-        self._harness = PaperHarness(strategy, self._cfg)
+        self._risk = risk_engine  # RiskEngine | None
+        self._harness = PaperHarness(strategy, self._cfg, risk_engine=self._risk)
         self._fetch = fetch_candles
         self._poll_interval = poll_interval
         self._running = False
