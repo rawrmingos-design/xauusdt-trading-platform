@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily XAUUSDT paper backup at 03:15 UTC (PROJECT-OPS-001)
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+Persistent=true
+Unit=xauusdt-paper-backup.service
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

@@ -15,8 +15,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import fcntl
 import logging
+import os
 import sys
+from pathlib import Path
 from typing import Any
 
 from xauusdt.exchange.models import Candle
@@ -81,6 +84,11 @@ def _build_parser() -> argparse.ArgumentParser:
     mp.add_argument("--run-id", required=True, help="run_id to inspect (health/events/report)")
     mp.add_argument("--limit", type=int, default=50, help="max events to list (events)")
     mp.add_argument("--out-dir", default="docs/reports", help="report output dir (report)")
+    mp.add_argument(
+        "--check",
+        action="store_true",
+        help="health: exit 1 when runtime unhealthy (for systemd health timers)",
+    )
     mp.add_argument("--verbose", action="store_true", help="debug logging")
     return parser
 
@@ -190,11 +198,34 @@ def _open_positions_for(db_path: str | None, run_id: str) -> int:
 
 
 def _monitor_service(db_path: str | None) -> Any:
-    """Build a MonitoringService bound to the same SQLite file."""
     from xauusdt.monitoring import MonitoringService, MonitorStore
 
+    db_path = db_path or str(Path.home() / ".hermes" / "xauusdt_paper" / "paper_runs.db")
     store = MonitorStore(db_path)
     return MonitoringService(store)
+
+
+def acquire_run_lock(db_path: str, run_id: str) -> tuple[Any, Path]:
+    """Take an exclusive advisory lock so one runtime owns (db, run_id).
+
+    The lock file lives next to the SQLite database (same filesystem, same
+    permissions). Exits with a clear error when another instance holds it.
+    """
+    lock_path = Path(db_path).with_suffix(".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        os.close(fd)
+        print(
+            f"ERROR: run={run_id} db={db_path} already locked "
+            f"({lock_path}). Another instance is using this run.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    os.write(fd, f"{os.getpid()}\n".encode())
+    return fd, lock_path
 
 
 def _cmd_monitor(args: argparse.Namespace) -> int:
@@ -213,6 +244,9 @@ def _cmd_monitor(args: argparse.Namespace) -> int:
             f"position={h['position_side'] or 'flat'} "
             f"issues={','.join(h['issues']) or 'none'}"
         )
+        if args.check:
+            # exit non-zero when the runtime is unhealthy or its heartbeat is missing
+            return 1 if not h["runtime_alive"] else 0
         return 0
     if action == "events":
         for ev in svc._store.recent_events(run_id, limit=args.limit):
@@ -301,6 +335,9 @@ async def _async_main(args: argparse.Namespace) -> int:
         return 0
 
     # polling mode: OKX REST collector
+    # single-instance guard: only one process may own (db, run_id)
+    db_path = args.db or str(Path.home() / ".hermes" / "xauusdt_paper" / "paper_runs.db")
+    acquire_run_lock(db_path, run_id)
     runner = PaperRunner(
         strategy,
         store,
