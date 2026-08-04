@@ -10,8 +10,10 @@ Guards:
   - candle gap:   block new entries when consecutive candles have a gap
   - single open position per symbol (no duplicate over-restart)
 
-Idempotency relies on candle timestamps: a candle already fully processed
-(recorded to the `runs` table) is skipped on restart. See repository.
+Continuous mode: state (open position + equity counters) is persisted and
+restored across process restarts. Idempotency relies on candle timestamps: a
+candle already fully processed (recorded to the positions/runs table) is
+skipped on restart.
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ import hashlib
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import cast
+from typing import Any, cast
 
 from xauusdt.backtest.models import BacktestPosition, Side, Signal
 from xauusdt.exchange.models import Candle
@@ -166,7 +168,12 @@ class PaperHarness:
 
         # continuity guard: no new entries on stale/gapped candles
         if self._entry_blocked and self._position is None:
-            self._record_signal(candle, signal, executed=False)
+            self._record_signal(
+                candle,
+                signal,
+                executed=False,
+                extra_reasons=["continuity_guard"],
+            )
             self._candles_processed += 1
             self._apply_equity(candle)
             return
@@ -205,6 +212,73 @@ class PaperHarness:
         """Call strategy.on_candle; SimPosition quacks like BacktestPosition."""
         pos = cast(BacktestPosition | None, self._position)
         return self._strategy.on_candle(candle, pos)
+
+    # ------------------------------------------- continuous-mode interface
+
+    def process_candle_continuous(self, candle: Candle) -> None:
+        """Process one candle in continuous mode (no EOL close, no result build)."""
+        self._process_candle(candle)
+
+    def drain_batch(self) -> PaperRunResult | None:
+        """Return records accumulated since the last drain (continuous mode).
+
+        Returns a lightweight PaperRunResult containing only new signals,
+        orders and exits; clears the internal lists so the next batch starts
+        empty. Returns None when nothing was recorded.
+        """
+        if not (self._signals or self._orders or self._exits):
+            return None
+        result = PaperRunResult(
+            run_id=self._run_id,
+            mode=self._cfg.mode,
+            strategy_version=self._strategy._config.version,
+            config_hash=self._config_hash,
+            commit_sha=self._commit,
+            candles_processed=self._candles_processed,
+            signals=list(self._signals),
+            orders=list(self._orders),
+            exits=list(self._exits),
+            final_balance=self._balance,
+            initial_balance=self._cfg.initial_balance,
+            max_drawdown=self._max_drawdown,
+            max_drawdown_pct=self._max_drawdown_pct,
+        )
+        self._signals = []
+        self._orders = []
+        self._exits = []
+        return result
+
+    @property
+    def balance(self) -> float:
+        return self._balance
+
+    @property
+    def peak_balance(self) -> float:
+        return self._peak_balance
+
+    @property
+    def max_drawdown(self) -> float:
+        return self._max_drawdown
+
+    @property
+    def max_drawdown_pct(self) -> float:
+        return self._max_drawdown_pct
+
+    @property
+    def candles_processed(self) -> int:
+        return self._candles_processed
+
+    @property
+    def strategy_version(self) -> str:
+        return self._strategy._config.version
+
+    @property
+    def config_hash(self) -> str:
+        return self._config_hash
+
+    @property
+    def open_position(self) -> SimPosition | None:
+        return self._position
 
     # ------------------------------------------------------------- positions
 
@@ -350,7 +424,13 @@ class PaperHarness:
 
     # ------------------------------------------------------------- signals
 
-    def _record_signal(self, candle: Candle, signal: Signal, executed: bool) -> None:
+    def _record_signal(
+        self,
+        candle: Candle,
+        signal: Signal,
+        executed: bool,
+        extra_reasons: list[str] | None = None,
+    ) -> None:
         cfg = self._strategy._config
         score = self._strategy.get_last_score()
         regime = None
@@ -362,7 +442,9 @@ class PaperHarness:
         # caused an order action (paper mode). A HOLD is "rejected" only when the
         # strategy actively rejected an entry candidate (v3 filters populate
         # rejection reasons). Plain HOLD (no reasons) is a non-candidate.
-        reasons = self._strategy.get_last_rejection_reasons()
+        reasons = list(self._strategy.get_last_rejection_reasons())
+        if extra_reasons:
+            reasons.extend(extra_reasons)
         rejected = signal == Signal.HOLD and bool(reasons)
         self._signals.append(
             SimSignal(
@@ -450,3 +532,77 @@ class PaperHarness:
             max_drawdown=self._max_drawdown,
             max_drawdown_pct=self._max_drawdown_pct,
         )
+
+    # ---------------------------------------------------- continuous state
+
+    def harness_state(self, symbol: str = "XAU-USDT-SWAP") -> dict[str, Any]:
+        """Serialize live state (equity counters + open position if any).
+
+        Always returns a dict: equity counters are always persisted; position
+        fields are present when a position is open (side=null otherwise).
+        """
+        base: dict[str, Any] = {
+            "run_id": self._run_id,
+            "symbol": symbol,
+            "balance_snapshot": self._balance,
+            "peak_balance_snapshot": self._peak_balance,
+            "max_drawdown_snapshot": self._max_drawdown,
+            "candles_processed": self._candles_processed,
+            "last_processed_candle": (
+                self._last_candle.open_time.isoformat() if self._last_candle else None
+            ),
+        }
+        if self._position is None:
+            base["side"] = None
+            return base
+        base.update(
+            {
+                "entry_candle_time": self._position.entry_candle_time.isoformat(),
+                "entry_price": self._position.entry_price,
+                "side": self._position.side.value,
+                "quantity": self._position.quantity,
+                "stop_loss_price": self._position.stop_loss_price,
+                "take_profit_price": self._position.take_profit_price,
+                "partial_tp_price": (
+                    self._position.partial_tp_price
+                    if self._position.partial_tp_price is not None
+                    else None
+                ),
+                "partial_tp_ratio": self._position.partial_tp_ratio,
+                "is_partial_closed": self._position.is_partial_closed,
+                "max_mfe_price": self._position.max_mfe_price,
+                "max_mae_price": self._position.max_mae_price,
+            }
+        )
+        return base
+
+    def restore_state(self, state: dict[str, Any] | None) -> None:
+        """Restore open position + equity counters from a persisted snapshot."""
+        if not state:
+            return
+        self._balance = float(state.get("balance_snapshot", self._balance))
+        self._peak_balance = float(state.get("peak_balance_snapshot", self._peak_balance))
+        self._max_drawdown = float(state.get("max_drawdown_snapshot", self._max_drawdown))
+        self._candles_processed = int(state.get("candles_processed", 0))
+        if not state.get("side"):
+            return
+        from datetime import datetime as _dt
+
+        self._position = SimPosition(
+            run_id=self._run_id,
+            entry_candle_time=_dt.fromisoformat(state["entry_candle_time"]),
+            entry_price=float(state["entry_price"]),
+            side=Side(state["side"]),
+            quantity=float(state["quantity"]),
+            stop_loss_price=float(state["stop_loss_price"]),
+            take_profit_price=float(state["take_profit_price"]),
+            partial_tp_price=(
+                float(state["partial_tp_price"]) if state.get("partial_tp_price") else None
+            ),
+            partial_tp_ratio=float(state["partial_tp_ratio"]),
+            is_partial_closed=bool(state.get("is_partial_closed", 0)),
+            max_mfe_price=float(state.get("max_mfe_price", 0.0)),
+            max_mae_price=float(state.get("max_mae_price", 0.0)),
+        )
+        if state.get("last_processed_candle"):
+            self._last_candle_time = _dt.fromisoformat(state["last_processed_candle"])
