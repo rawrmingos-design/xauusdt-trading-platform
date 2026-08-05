@@ -152,25 +152,7 @@ class OKXClient:
         data = await self._request("/api/v5/market/history-candles", params)
         raw_candles = data["data"]
 
-        candles = []
-        for raw in raw_candles:
-            # OKX: ["ts","o","h","l","c","vol","volCcy","volCcyQuote","confirm"]
-            ts, o, h, low, c, vol, *_ = raw
-            open_time = datetime.fromtimestamp(int(ts) / 1000, tz=UTC)
-            candle = Candle(
-                symbol=symbol,
-                granularity=granularity,
-                open_time=open_time,
-                open=float(o),
-                high=float(h),
-                low=float(low),
-                close=float(c),
-                volume=float(vol),
-                quote_volume=float(vol) * float(c),  # estimate if volCcyQuote not reliable
-            )
-            candles.append(candle)
-
-        return candles
+        return [self._normalize_candle(symbol, granularity, raw) for raw in raw_candles]
 
     async def fetch_candles_paginated(
         self,
@@ -181,37 +163,60 @@ class OKXClient:
     ) -> AsyncIterator[Candle]:
         """Fetch candles with automatic pagination.
 
-        Yields Candle objects one at a time.
-        Uses OKX 'after'/'before' pagination via timestamps.
+        Yields Candle objects one at a time (newest first).
+        Walks backwards from the latest candles toward ``start_time`` using the
+        OKX ``after`` cursor: OKX returns candles OLDER than the ``after``
+        timestamp. ``start_time`` is the inclusive oldest boundary (we stop
+        once the oldest candle in a page is at/below it); ``end_time`` is
+        ignored for history (OKX history has no upper-bound param) — the
+        caller should pass ``start_time`` only.
         """
-        current_end = end_time
+        after_ts: int | None = None  # ms epoch; OKX 'after' cursor
 
         while True:
-            kwargs: dict[str, Any] = {
-                "symbol": symbol,
-                "granularity": granularity,
-                "end_time": current_end,
-                "limit": self.MAX_LIMIT,
+            params: dict[str, str] = {
+                "instId": self.SYMBOL_MAP.get(symbol, symbol),
+                "bar": self.GRANULARITY_MAP.get(granularity, granularity),
+                "limit": str(self.MAX_LIMIT),
             }
-            if start_time:
-                kwargs["start_time"] = start_time
+            if after_ts is not None:
+                params["after"] = str(after_ts)
 
-            candles = await self.fetch_candles(**kwargs)
-
-            if not candles:
+            data = await self._request("/api/v5/market/history-candles", params)
+            raw_candles = data["data"]
+            if not raw_candles:
                 break
 
+            candles = [self._normalize_candle(symbol, granularity, raw) for raw in raw_candles]
+            # OKX returns newest first
             for candle in candles:
+                if start_time is not None and candle.open_time < start_time:
+                    return
                 yield candle
 
             if len(candles) < self.MAX_LIMIT:
                 break
-
-            first_candle = candles[0]
-            current_end = first_candle.open_time
-
-            if start_time and candles[0].open_time <= start_time:
+            oldest = min(c.open_time.timestamp() for c in candles)
+            after_ts = int(oldest * 1000)
+            if start_time is not None and candles[-1].open_time <= start_time:
                 break
+
+    @staticmethod
+    def _normalize_candle(symbol: str, granularity: str, raw: list[str]) -> Candle:
+        # OKX: ["ts","o","h","l","c","vol","volCcy","volCcyQuote","confirm"]
+        ts, o, h, low, c, vol, *_ = raw
+        open_time = datetime.fromtimestamp(int(ts) / 1000, tz=UTC)
+        return Candle(
+            symbol=symbol,
+            granularity=granularity,
+            open_time=open_time,
+            open=float(o),
+            high=float(h),
+            low=float(low),
+            close=float(c),
+            volume=float(vol),
+            quote_volume=float(vol) * float(c),  # estimate if volCcyQuote not reliable
+        )
 
 
 def _is_retryable(exception: BaseException) -> bool:
