@@ -40,9 +40,39 @@ chmod 0750 "$STATE_DIR" "$BACKUP_DIR" "$STATE_DIR/reports"
 # --- 3. application (venv). Prefer existing venv; else build from source. ---
 if [[ ! -x "$INSTALL_DIR/.venv/bin/xauusdt-paper" ]]; then
     echo "building venv from $APP_SRC ..."
-    python3 -m venv "$INSTALL_DIR/.venv"
-    "$INSTALL_DIR/.venv/bin/pip" install --upgrade pip >/dev/null
-    "$INSTALL_DIR/.venv/bin/pip" install -e "$APP_SRC" >/dev/null
+    # Pick a working Python: must satisfy project requires-python (>=3.11)
+    # AND support venv (ensurepip). python3.10 is excluded: pyproject requires
+    # Python>=3.11 (datetime.UTC etc).
+    PY_BIN=""
+    for cand in python3.12 python3.11 python3.10 python3; do
+        if command -v "$cand" >/dev/null 2>&1 \
+           && "$cand" -c "import ensurepip" >/dev/null 2>&1 \
+           && "$cand" -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)"; then
+            PY_BIN="$(command -v "$cand")"
+            break
+        fi
+    done
+    if [[ -n "$PY_BIN" ]]; then
+        "$PY_BIN" -m venv "$INSTALL_DIR/.venv"
+        "$INSTALL_DIR/.venv/bin/pip" install --upgrade pip >/dev/null
+        if command -v uv >/dev/null 2>&1; then
+            # Non-editable: the venv must be self-contained. The source tree lives
+            # under a private home (mode 750) the service user cannot traverse;
+            # an editable install would break at runtime with ModuleNotFoundError.
+            # uv resolves the hatchling build backend correctly.
+            uv pip install --python "$INSTALL_DIR/.venv/bin/python" "$APP_SRC"
+        else
+            "$INSTALL_DIR/.venv/bin/pip" install "$APP_SRC" >/dev/null
+        fi
+    elif command -v uv >/dev/null 2>&1; then
+        echo "no python with ensurepip found; using uv (project .python-version: 3.12)"
+        UV_PY="$(uv python find 2>/dev/null || true)"
+        uv venv --python "${UV_PY:-3.12}" "$INSTALL_DIR/.venv"
+        uv pip install --python "$INSTALL_DIR/.venv/bin/python" -e "$APP_SRC"
+    else
+        echo "ERROR: no usable Python (need ensurepip) and no uv. Install python3-venv." >&2
+        exit 1
+    fi
 fi
 chown -R root:root "$INSTALL_DIR"
 chmod 0755 "$INSTALL_DIR"

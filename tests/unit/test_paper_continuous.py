@@ -19,6 +19,8 @@ from xauusdt.execution.paper.models import (
 )
 from xauusdt.execution.paper.runner import PaperRunner
 from xauusdt.execution.paper.store import PaperStore
+from xauusdt.monitoring.service import MonitoringService
+from xauusdt.monitoring.store import MonitorStore
 from xauusdt.strategy.confluence import ConfluenceStrategy, make_v3_candidate_config
 
 
@@ -219,6 +221,35 @@ def test_runner_new_run_id_is_independent(tmp_path) -> None:
     assert len(store.get_signals("run-a")) == 3
     assert len(store.get_signals("run-b")) == 2
     store.close()
+
+
+def test_runner_heartbeat_advances_without_fresh_candles(tmp_path) -> None:
+    """PROJECT-OPS-002: heartbeat must advance on EVERY successful poll, even
+    when no fresh candles exist (15m bar, 2m poll). Otherwise the health timer
+    false-alarms on a healthy runtime with a stale heartbeat."""
+    db = tmp_path / "paper.db"
+    store = PaperStore(db)
+    monitor = MonitoringService(MonitorStore(db))
+    # cycle 1: 3 fresh candles. cycles 2-4: same candles again (no new data).
+    candles = _candle_series(3, datetime(2026, 1, 4, 8, 0, tzinfo=UTC))
+    fetcher = FakeFetcher([candles, candles, candles, candles])
+    runner = PaperRunner(
+        ConfluenceStrategy(make_v3_candidate_config()),
+        store,
+        "hb-alive",
+        "sha1",
+        fetch_candles=fetcher,
+        poll_interval=0,
+        monitor=monitor,
+    )
+    asyncio.run(runner.run_loop(max_cycles=4))
+    hb = monitor._store.get_heartbeat("hb-alive")
+    assert hb is not None
+    assert hb["collector_consecutive_errors"] == 0
+    # signals processed exactly once (dedup across cycles)
+    assert len(store.get_signals("hb-alive")) == 3
+    store.close()
+    monitor._store.close()
 
 
 def test_runner_position_restored_after_restart(tmp_path) -> None:

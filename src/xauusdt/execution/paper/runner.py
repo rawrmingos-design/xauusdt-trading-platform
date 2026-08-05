@@ -148,17 +148,28 @@ class PaperRunner:
                     candles = await self._fetch()
                 if not candles:
                     log.debug("No candles returned")
+                    if self._monitor is not None:
+                        # healthy poll, nothing returned (e.g. market open gap)
+                        self._push_heartbeat(consecutive_err=consecutive_err, total_err=total_err)
                     await asyncio.sleep(self._poll_interval)
                     continue
                 newest_ts = max(c.open_time.timestamp() for c in candles)
                 if newest_ts <= self._last_ts:
                     log.debug("No new candles since last poll")
+                    if self._monitor is not None:
+                        # Runtime is alive even without fresh candles (15m bar,
+                        # 2m poll). Heartbeat must advance every successful poll
+                        # cycle, or health check false-alarms on stale heartbeat.
+                        self._push_heartbeat(consecutive_err=consecutive_err, total_err=total_err)
                     await asyncio.sleep(self._poll_interval)
                     continue
                 self._last_ts = newest_ts
                 fresh = [c for c in candles if c.open_time.isoformat() not in processed]
                 if not fresh:
                     log.debug("No fresh candles in this batch")
+                    if self._monitor is not None:
+                        # duplicates/overlap only; runtime still healthy
+                        self._push_heartbeat(consecutive_err=consecutive_err, total_err=total_err)
                     await asyncio.sleep(self._poll_interval)
                     continue
                 # process only the new candles, preserving in-memory state
