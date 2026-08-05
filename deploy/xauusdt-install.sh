@@ -37,45 +37,59 @@ mkdir -p "$INSTALL_DIR" "$STATE_DIR/reports" "$BACKUP_DIR" "$CONF_DIR"
 chown -R xauusdt:xauusdt "$STATE_DIR" "$BACKUP_DIR"
 chmod 0750 "$STATE_DIR" "$BACKUP_DIR" "$STATE_DIR/reports"
 
-# --- 3. application (venv). Prefer existing venv; else build from source. ---
-if [[ ! -x "$INSTALL_DIR/.venv/bin/xauusdt-paper" ]]; then
+# --- 3. application (venv) ---
+# Resolve a Python satisfying project requires-python (>=3.11) AND supporting
+# venv (ensurepip). python3.10 is excluded: pyproject requires Python>=3.11
+# (datetime.UTC etc). If the venv does not exist, build it from this Python.
+PY_BIN=""
+for cand in python3.12 python3.11 python3.10 python3; do
+    if command -v "$cand" >/dev/null 2>&1 \
+       && "$cand" -c "import ensurepip" >/dev/null 2>&1 \
+       && "$cand" -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)"; then
+        PY_BIN="$(command -v "$cand")"
+        break
+    fi
+done
+
+if [[ ! -x "$INSTALL_DIR/.venv/bin/python" ]]; then
     echo "building venv from $APP_SRC ..."
-    # Pick a working Python: must satisfy project requires-python (>=3.11)
-    # AND support venv (ensurepip). python3.10 is excluded: pyproject requires
-    # Python>=3.11 (datetime.UTC etc).
-    PY_BIN=""
-    for cand in python3.12 python3.11 python3.10 python3; do
-        if command -v "$cand" >/dev/null 2>&1 \
-           && "$cand" -c "import ensurepip" >/dev/null 2>&1 \
-           && "$cand" -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)"; then
-            PY_BIN="$(command -v "$cand")"
-            break
-        fi
-    done
     if [[ -n "$PY_BIN" ]]; then
         "$PY_BIN" -m venv "$INSTALL_DIR/.venv"
-        "$INSTALL_DIR/.venv/bin/pip" install --upgrade pip >/dev/null
-        if command -v uv >/dev/null 2>&1; then
-            # Non-editable: the venv must be self-contained. The source tree lives
-            # under a private home (mode 750) the service user cannot traverse;
-            # an editable install would break at runtime with ModuleNotFoundError.
-            # uv resolves the hatchling build backend correctly.
-            uv pip install --python "$INSTALL_DIR/.venv/bin/python" "$APP_SRC"
-        else
-            "$INSTALL_DIR/.venv/bin/pip" install "$APP_SRC" >/dev/null
+        if command -v "$INSTALL_DIR/.venv/bin/pip" >/dev/null 2>&1; then
+            "$INSTALL_DIR/.venv/bin/pip" install --upgrade pip >/dev/null
         fi
     elif command -v uv >/dev/null 2>&1; then
         echo "no python with ensurepip found; using uv (project .python-version: 3.12)"
         UV_PY="$(uv python find 2>/dev/null || true)"
         uv venv --python "${UV_PY:-3.12}" "$INSTALL_DIR/.venv"
-        uv pip install --python "$INSTALL_DIR/.venv/bin/python" -e "$APP_SRC"
     else
         echo "ERROR: no usable Python (need ensurepip) and no uv. Install python3-venv." >&2
         exit 1
     fi
 fi
+
+# --- 3b. install/refresh the application package (ALWAYS, even if venv exists)
+# Non-editable: the venv must be self-contained. The source tree lives under a
+# private home (mode 750) the service user cannot traverse; an editable install
+# would break at runtime with ModuleNotFoundError. Reinstall on every run so a
+# re-deploy ships the current repository commit even when the venv pre-exists.
+INSTALL_VENV_PY="$INSTALL_DIR/.venv/bin/python"
+if ! "$INSTALL_VENV_PY" -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)"; then
+    echo "ERROR: deployment venv Python is <3.11; rebuild the venv from a >=3.11 interpreter ($PY_BIN)." >&2
+    exit 1
+fi
+if command -v uv >/dev/null 2>&1; then
+    # uv resolves the hatchling build backend correctly.
+    uv pip install --python "$INSTALL_VENV_PY" --force-reinstall --no-deps "$APP_SRC"
+else
+    "$INSTALL_VENV_PY" -m pip install --force-reinstall --no-deps "$APP_SRC" >/dev/null
+fi
+if ! "$INSTALL_VENV_PY" -c "import xauusdt"; then
+    echo "ERROR: application package import failed after install; refusing to continue." >&2
+    exit 1
+fi
 chown -R root:root "$INSTALL_DIR"
-chmod 0755 "$INSTALL_DIR"
+chmod -R o-w "$INSTALL_DIR" 2>/dev/null || chmod 0755 "$INSTALL_DIR"
 
 # --- 4. env file (only if absent — secrets never overwritten) ---
 if [[ ! -f "$ENV_FILE" ]]; then

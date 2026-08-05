@@ -19,7 +19,7 @@ import argparse
 import json
 import sqlite3
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -249,6 +249,63 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_backfill(args: argparse.Namespace) -> int:
+    """Backfill paper_candles from OKX history for [start, latest finalized).
+
+    OPS task run pre-checkpoint (NOT evaluation). No performance metrics are
+    computed or displayed. Idempotent: existing (run_id, open_time) rows are
+    ignored, so runtime-persisted candles survive and only missing slots are
+    filled. The checkpoint evaluator still reads ONLY stored candles.
+    """
+    import asyncio
+
+    from xauusdt.exchange.okx_client import OKXClient
+
+    start = datetime.fromisoformat(args.start.replace("Z", "+00:00"))
+
+    async def _run() -> dict[str, int]:
+        store = _store(args.db)
+        client = OKXClient()
+        # end excludes any incomplete current candle: latest finalized is the
+        # last complete 15m bar; fetch_candles returns finalized candles only.
+        end = utc_now()
+        existing_before = store.candle_count(args.run_id)
+        new = 0
+        try:
+            async for candle in client.fetch_candles_paginated(
+                symbol=args.symbol,
+                granularity=args.granularity,
+                start_time=start,
+                end_time=end,
+            ):
+                if store.append_candles(args.run_id, [candle]):
+                    new += 1
+        finally:
+            store.close()
+        return {"filled": new, "existing_before": existing_before}
+
+    stats = asyncio.run(_run())
+
+    # post-audit: coverage/gaps/dupes on the backfilled range (operational only)
+    store = _store(args.db)
+    candles_now = store.load_candles(args.run_id, start=FORWARD_START)
+    end_now = FORWARD_START + timedelta(days=66)  # allow margin past now
+    aud = audit_window(args.run_id, candles_now, FORWARD_START, end_now)
+    store.close()
+
+    r = args.run_id
+    print(f"Run ID          : {r}")
+    print(f"Requested start : {start.isoformat()}")
+    print(f"Finalized end   : {aud.last_candle_time or '(none)'}")
+    print(f"Existing        : {stats['existing_before']}")
+    print(f"Inserted        : {stats['filled']}")
+    print(f"Gaps            : {aud.gap_count}")
+    print(f"Duplicates      : {aud.duplicate_count}")
+    print(f"Coverage        : {aud.coverage_pct}%")
+    print("Performance     : LOCKED until 2026-09-13T00:00:00Z")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="PROJECT-FORWARD-OOS-001 forward OOS CLI")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -264,6 +321,20 @@ def main(argv: list[str] | None = None) -> int:
     pe.add_argument("--db", default=DEFAULT_DB)
     pe.add_argument("--out-dir", default="docs/reports")
     pe.set_defaults(func=cmd_evaluate)
+
+    pb = sub.add_parser(
+        "backfill", help="OPS: fill paper_candles from OKX history (pre-checkpoint, no metrics)"
+    )
+    pb.add_argument("--run-id", default=DEFAULT_RUN_ID)
+    pb.add_argument("--db", default=DEFAULT_DB)
+    pb.add_argument("--symbol", default="XAU-USDT-SWAP")
+    pb.add_argument("--granularity", default="15m")
+    pb.add_argument(
+        "--start",
+        default=f"{FORWARD_START.isoformat()}Z",
+        help="UTC start, e.g. 2026-07-16T00:00:00Z",
+    )
+    pb.set_defaults(func=cmd_backfill)
 
     args = p.parse_args(argv)
     return args.func(args)
