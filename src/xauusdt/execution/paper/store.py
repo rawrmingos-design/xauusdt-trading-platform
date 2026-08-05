@@ -15,11 +15,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from xauusdt.exchange.models import Candle
 from xauusdt.execution.paper.models import (
     PaperRunResult,
 )
 
 log = logging.getLogger(__name__)
+
+
+def _now_utc() -> str:
+    """UTC now as ISO string (timezone-aware)."""
+    return datetime.now(UTC).isoformat()
+
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS paper_runs (
@@ -112,6 +119,24 @@ CREATE INDEX IF NOT EXISTS idx_signals_run ON paper_signals(run_id);
 CREATE INDEX IF NOT EXISTS idx_orders_run ON paper_orders(run_id);
 CREATE INDEX IF NOT EXISTS idx_exits_run ON paper_exits(run_id);
 CREATE INDEX IF NOT EXISTS idx_positions_run ON paper_positions(run_id);
+
+-- PROJECT-FORWARD-OOS-001: raw forward candles persisted by the runtime.
+-- The offline replay reads ONLY these stored candles (no live OKX during
+-- evaluation). UNIQUE(run_id, open_time) makes the append idempotent.
+CREATE TABLE IF NOT EXISTS paper_candles (
+    run_id TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    open_time TEXT NOT NULL,
+    open REAL NOT NULL,
+    high REAL NOT NULL,
+    low REAL NOT NULL,
+    close REAL NOT NULL,
+    volume REAL NOT NULL,
+    granularity TEXT NOT NULL,
+    stored_at TEXT NOT NULL,
+    UNIQUE(run_id, open_time)
+);
+CREATE INDEX IF NOT EXISTS idx_candles_run_time ON paper_candles(run_id, open_time);
 """
 
 
@@ -161,6 +186,79 @@ class PaperStore:
             "SELECT candle_time FROM paper_signals WHERE run_id = ?", (run_id,)
         )
         return {row["candle_time"] for row in cur.fetchall()}
+
+    # ------------------------------------------------ raw candle persistence
+    # PROJECT-FORWARD-OOS-001: the runtime persists every processed candle so
+    # the offline replay can evaluate the frozen forward window WITHOUT any
+    # live OKX call during evaluation. Idempotent on (run_id, open_time).
+
+    def append_candles(self, run_id: str, candles: list[Candle]) -> int:
+        """Persist candles for a run. Returns number of new rows inserted."""
+        if not candles:
+            return 0
+        now = _now_utc()
+        rows = [
+            (
+                run_id,
+                c.symbol,
+                c.open_time.isoformat(),
+                c.open,
+                c.high,
+                c.low,
+                c.close,
+                c.volume,
+                c.granularity,
+                now,
+            )
+            for c in candles
+        ]
+        cur = self._conn.executemany(
+            """INSERT OR IGNORE INTO paper_candles
+               (run_id, symbol, open_time, open, high, low, close, volume,
+                granularity, stored_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            rows,
+        )
+        self._conn.commit()
+        return cur.rowcount
+
+    def load_candles(
+        self,
+        run_id: str,
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> list[Candle]:
+        """Stored candles for a run, chronologically, optionally windowed."""
+        sql = (
+            "SELECT symbol, open_time, open, high, low, close, volume, granularity "
+            "FROM paper_candles WHERE run_id = ?"
+        )
+        params: list[Any] = [run_id]
+        if start is not None:
+            sql += " AND open_time >= ?"
+            params.append(start.isoformat())
+        if end is not None:
+            sql += " AND open_time < ?"
+            params.append(end.isoformat())
+        sql += " ORDER BY open_time"
+        rows = self._conn.execute(sql, params).fetchall()
+        return [
+            Candle(
+                symbol=row["symbol"],
+                granularity=row["granularity"],
+                open_time=datetime.fromisoformat(row["open_time"]),
+                open=row["open"],
+                high=row["high"],
+                low=row["low"],
+                close=row["close"],
+                volume=row["volume"],
+            )
+            for row in rows
+        ]
+
+    def candle_count(self, run_id: str) -> int:
+        cur = self._conn.execute("SELECT COUNT(*) FROM paper_candles WHERE run_id = ?", (run_id,))
+        return int(cur.fetchone()[0])
 
     def run_exists(self, run_id: str) -> bool:
         return self._run_exists(run_id)

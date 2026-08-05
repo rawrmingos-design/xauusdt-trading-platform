@@ -181,6 +181,9 @@ class PaperRunner:
                 batch = self._harness.drain_batch()
                 if batch is not None:
                     self._store.append_records(batch)
+                # PROJECT-FORWARD-OOS-001: persist raw forward candles so the
+                # offline replay can evaluate without live OKX at checkpoint.
+                self._store.append_candles(self._run_id, fresh)
                 self._store.ensure_run(
                     self._run_id,
                     self._cfg.mode.value,
