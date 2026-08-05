@@ -19,7 +19,7 @@ import argparse
 import json
 import sqlite3
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +42,21 @@ DEFAULT_DB = "/var/lib/xauusdt/paper_runs.db"
 
 def _store(db: str) -> PaperStore:
     return PaperStore(db)
+
+
+def _finalized_boundary() -> datetime:
+    """Most recent 15m grid slot certain to be finalized.
+
+    A 15m candle whose bar is ``HH:MM`` is only finalized once the clock
+    passes the following grid boundary (e.g. a 05:00 bar is final after
+    05:15). Auditing/backfill up to raw ``utc_now`` can count the in-flight
+    candle as a false gap. Floor ``now`` to the last 15m boundary and step
+    back one slot so we never demand a candle not yet finalized.
+    """
+    now = utc_now()
+    return (
+        now - timedelta(minutes=now.minute % 15, seconds=now.second, microseconds=now.microsecond)
+    ) - timedelta(minutes=15)
 
 
 def _monitor_heartbeat(db: str, run_id: str) -> dict[str, Any]:
@@ -131,7 +146,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     # Audit to utc_now: coverage reflects finalized candles only. Auditing to
     # CHECKPOINT_60D counts every future 15m slot as a gap, which falsely
     # signals missing data before the checkpoint wall-clock has passed.
-    aud = audit_window(args.run_id, candles, FORWARD_START, utc_now())
+    aud = audit_window(args.run_id, candles, FORWARD_START, _finalized_boundary())
     hb = _monitor_heartbeat(args.db, args.run_id)
     integ = _db_integrity(args.db)
     backup = _backup_freshness(args.db)
@@ -268,7 +283,7 @@ def cmd_backfill(args: argparse.Namespace) -> int:
 
     async def _run() -> dict[str, int]:
         store = _store(args.db)
-        end = utc_now()
+        end = _finalized_boundary()
         existing_before = store.candle_count(args.run_id)
         new = 0
         try:
@@ -290,7 +305,7 @@ def cmd_backfill(args: argparse.Namespace) -> int:
     # post-audit: coverage/gaps/dupes on the backfilled range (operational only)
     store = _store(args.db)
     candles_now = store.load_candles(args.run_id, start=FORWARD_START)
-    aud = audit_window(args.run_id, candles_now, FORWARD_START, utc_now())
+    aud = audit_window(args.run_id, candles_now, FORWARD_START, _finalized_boundary())
     store.close()
 
     r = args.run_id
