@@ -128,7 +128,10 @@ def _backup_freshness(db: str) -> dict[str, Any]:
 def cmd_status(args: argparse.Namespace) -> int:
     store = _store(args.db)
     candles = store.load_candles(args.run_id)
-    aud = audit_window(args.run_id, candles, FORWARD_START, current_checkpoint() or CHECKPOINT_60D)
+    # Audit to utc_now: coverage reflects finalized candles only. Auditing to
+    # CHECKPOINT_60D counts every future 15m slot as a gap, which falsely
+    # signals missing data before the checkpoint wall-clock has passed.
+    aud = audit_window(args.run_id, candles, FORWARD_START, utc_now())
     hb = _monitor_heartbeat(args.db, args.run_id)
     integ = _db_integrity(args.db)
     backup = _backup_freshness(args.db)

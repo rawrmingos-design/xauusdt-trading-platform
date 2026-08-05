@@ -306,3 +306,21 @@ def test_backfill_does_not_touch_execution_state(tmp_path: Path) -> None:
     # only candle archive grew
     assert store.candle_count("run-e") == 10
     store.close()
+
+
+def test_status_audits_to_now_not_future_checkpoint() -> None:
+    """Coverage must be measured to utc_now; auditing to the 60d checkpoint
+    would count every future 15m slot as a gap and false-alarm on data that
+    simply hasn't been produced yet."""
+    # A filled window of 4 days ending at "now" (no future slots expected yet).
+    now = FORWARD_START + timedelta(days=4)
+    candles = _forward_candles(4 * 96, FORWARD_START)  # first 4 full days
+    # audit to "now": every grid slot to now is filled -> 100%
+    a_now = audit_window("r", candles, FORWARD_START, now)
+    assert a_now.coverage_pct == 100.0
+    assert a_now.gap_count == 0
+    # audit to the 60d checkpoint instead: all slots after `now` are future
+    # and counted as missing -> coverage < 100%.
+    a_checkpoint = audit_window("r", candles, FORWARD_START, CHECKPOINT_60D)
+    assert a_checkpoint.coverage_pct < 100.0
+    assert a_checkpoint.gap_count > a_now.gap_count
