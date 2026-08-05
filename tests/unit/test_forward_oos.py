@@ -243,3 +243,66 @@ def test_metrics_win_loss() -> None:
     assert res.win_rate_pct == 50.0
     assert res.profit_factor == 2.0  # 100/50
     assert res.net_pnl == 50.0
+
+
+# ---------------------------------------------------------------- backfill
+
+
+def test_backfill_append_resume_and_idempotent(tmp_path: Path) -> None:
+    """Backfill-like append: resume only missing, second run inserts zero."""
+    db = tmp_path / "p.db"
+    store = PaperStore(db)
+    full = _forward_candles(96, FORWARD_START)
+    # simulate runtime already persisted the first 10 candles
+    store.append_candles("run-bf", full[:10])
+    assert store.candle_count("run-bf") == 10
+
+    # backfill pass 1: append the rest (idempotent per open_time)
+    inserted = store.append_candles("run-bf", full)
+    assert inserted == 86  # 96 - 10 already there
+    assert store.candle_count("run-bf") == 96
+
+    # backfill pass 2: identical input -> zero new rows
+    inserted2 = store.append_candles("run-bf", full)
+    assert inserted2 == 0
+    assert store.candle_count("run-bf") == 96
+    store.close()
+
+
+def test_backfill_repairs_gap(tmp_path: Path) -> None:
+    """A missing slot in the middle is filled by a later append."""
+    db = tmp_path / "p.db"
+    store = PaperStore(db)
+    full = _forward_candles(96, FORWARD_START)
+    # first pass stores all except one
+    missing = full[50]
+    partial = [c for c in full if c.open_time != missing.open_time]
+    store.append_candles("run-g", partial)
+    # second pass delivers the full set -> gap repaired, no dupes
+    store.append_candles("run-g", full)
+    loaded = store.load_candles("run-g")
+    end = FORWARD_START + timedelta(days=1)
+    aud = audit_window("run-g", loaded, FORWARD_START, end)
+    assert aud.complete
+    assert aud.gap_count == 0
+    assert aud.duplicate_count == 0
+    store.close()
+
+
+def test_backfill_does_not_touch_execution_state(tmp_path: Path) -> None:
+    """Backfill only writes paper_candles; signals/orders/exits untouched."""
+    db = tmp_path / "p.db"
+    store = PaperStore(db)
+    candles = _forward_candles(10, FORWARD_START)
+    store.append_candles("run-e", candles[:5])
+    # simulate pre-existing execution records
+    store.ensure_run("run-e", "paper", "v3", "hash", "commit", 10000.0)
+    # backfill pass
+    store.append_candles("run-e", candles)
+    # execution tables still empty for this run
+    assert len(store.get_signals("run-e")) == 0
+    assert len(store.get_orders("run-e")) == 0
+    assert len(store.get_exits("run-e")) == 0
+    # only candle archive grew
+    assert store.candle_count("run-e") == 10
+    store.close()
