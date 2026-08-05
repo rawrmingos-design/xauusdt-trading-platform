@@ -16,6 +16,7 @@
 set -euo pipefail
 
 APP_SRC="${XAUUSDT_APP_SRC:-/home/devistopup13/xauusdt-platform}"
+INSTALLER_HOME="/home/devistopup13"
 INSTALL_DIR="${XAUUSDT_INSTALL_DIR:-/opt/xauusdt}"
 STATE_DIR="${XAUUSDT_STATE_DIR:-/var/lib/xauusdt}"
 BACKUP_DIR="${XAUUSDT_BACKUP_DIR:-/var/backups/xauusdt}"
@@ -81,8 +82,14 @@ fi
 if command -v uv >/dev/null 2>&1; then
     # uv resolves the hatchling build backend correctly.
     uv pip install --python "$INSTALL_VENV_PY" --force-reinstall --no-deps "$APP_SRC"
-else
+elif [[ -x "$INSTALLER_HOME/.local/bin/uv" ]]; then
+    # sudo secure_path often omits ~/.local/bin; resolve uv explicitly.
+    "$INSTALLER_HOME/.local/bin/uv" pip install --python "$INSTALL_VENV_PY" --force-reinstall --no-deps "$APP_SRC"
+elif "$INSTALL_VENV_PY" -c "import pip" >/dev/null 2>&1; then
     "$INSTALL_VENV_PY" -m pip install --force-reinstall --no-deps "$APP_SRC" >/dev/null
+else
+    echo "ERROR: no uv (PATH or ~/.local/bin) and no pip in venv; cannot install package." >&2
+    exit 1
 fi
 if ! "$INSTALL_VENV_PY" -c "import xauusdt"; then
     echo "ERROR: application package import failed after install; refusing to continue." >&2
