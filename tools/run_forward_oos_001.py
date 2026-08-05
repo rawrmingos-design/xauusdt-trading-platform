@@ -19,7 +19,7 @@ import argparse
 import json
 import sqlite3
 import sys
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -265,21 +265,19 @@ def cmd_backfill(args: argparse.Namespace) -> int:
 
     async def _run() -> dict[str, int]:
         store = _store(args.db)
-        client = OKXClient()
-        # end excludes any incomplete current candle: latest finalized is the
-        # last complete 15m bar; fetch_candles returns finalized candles only.
         end = utc_now()
         existing_before = store.candle_count(args.run_id)
         new = 0
         try:
-            async for candle in client.fetch_candles_paginated(
-                symbol=args.symbol,
-                granularity=args.granularity,
-                start_time=start,
-                end_time=end,
-            ):
-                if store.append_candles(args.run_id, [candle]):
-                    new += 1
+            async with OKXClient() as client:
+                async for candle in client.fetch_candles_paginated(
+                    symbol=args.symbol,
+                    granularity=args.granularity,
+                    start_time=start,
+                    end_time=end,
+                ):
+                    if store.append_candles(args.run_id, [candle]):
+                        new += 1
         finally:
             store.close()
         return {"filled": new, "existing_before": existing_before}
@@ -289,8 +287,7 @@ def cmd_backfill(args: argparse.Namespace) -> int:
     # post-audit: coverage/gaps/dupes on the backfilled range (operational only)
     store = _store(args.db)
     candles_now = store.load_candles(args.run_id, start=FORWARD_START)
-    end_now = FORWARD_START + timedelta(days=66)  # allow margin past now
-    aud = audit_window(args.run_id, candles_now, FORWARD_START, end_now)
+    aud = audit_window(args.run_id, candles_now, FORWARD_START, utc_now())
     store.close()
 
     r = args.run_id
