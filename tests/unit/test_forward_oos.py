@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from tools.run_forward_oos_001 import _record_time, _records_from
 from xauusdt.backtest.models import BacktestTrade
 from xauusdt.exchange.models import Candle
 from xauusdt.execution.paper.store import PaperStore
@@ -324,3 +325,25 @@ def test_status_audits_to_now_not_future_checkpoint() -> None:
     a_checkpoint = audit_window("r", candles, FORWARD_START, CHECKPOINT_60D)
     assert a_checkpoint.coverage_pct < 100.0
     assert a_checkpoint.gap_count > a_now.gap_count
+
+
+def test_parity_window_filters_to_runtime_observation() -> None:
+    """Parity must only count records from runtime_observation_start onward.
+
+    Backfilled candles before the live runtime must never be mistaken for
+    live paper execution; replay and paper counts use the same sub-window.
+    """
+    # candle grid: 4 days starting FORWARD_START
+    candles = _forward_candles(4 * 96, FORWARD_START)
+    # runtime observation starts halfway through day 2
+    obs = FORWARD_START + timedelta(days=2)
+    # records after obs_start only
+    obs_candles = _records_from(candles, obs)
+    assert len(obs_candles) == 2 * 96
+    assert obs_candles[0].open_time >= obs
+
+    # a signal exactly at obs_start is included; one minute before is not
+    before = {"candle_time": (obs - timedelta(minutes=1)).isoformat()}
+    at = {"candle_time": obs.isoformat()}
+    assert not (_record_time(before, "candle_time") >= obs)
+    assert _record_time(at, "candle_time") >= obs

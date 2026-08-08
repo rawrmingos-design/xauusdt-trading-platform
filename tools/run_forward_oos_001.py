@@ -59,6 +59,18 @@ def _finalized_boundary() -> datetime:
     ) - timedelta(minutes=15)
 
 
+def _record_time(rec: dict[str, Any], key: str) -> datetime:
+    """Parse a stored UTC timestamp column into a tz-aware datetime."""
+    return datetime.fromisoformat(str(rec[key]).replace("Z", "+00:00"))
+
+
+def _records_from(candles: list[Any], start: datetime | None) -> list[Any]:
+    """Filter candles to those at/after `start` (None => unchanged)."""
+    if start is None:
+        return candles
+    return [c for c in candles if c.open_time >= start]
+
+
 def _monitor_heartbeat(db: str, run_id: str) -> dict[str, Any]:
     """Read monitor_heartbeat row (operational only)."""
     try:
@@ -212,12 +224,56 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     replay = replay_offline(candles)
     metrics = compute_metrics(replay)
 
-    paper_signals = len(store.get_signals(args.run_id))
-    paper_entries = len([o for o in store.get_orders(args.run_id) if o["order_type"] == "ENTRY"])
-    paper_exits = len(store.get_exits(args.run_id))
-    replay_signals = metrics.trade_count
-    replay_entries = metrics.trade_count
-    replay_exits = sum(metrics.exit_reasons.values())
+    # runtime_observation_start: when the live paper runtime first became
+    # active (paper_runs.created_at). Parity is only meaningful from this
+    # point — the pre-deployment window has no live execution, and backfilled
+    # candles must never be mistaken for live paper execution.
+    run_created = row.get("created_at") if row else None
+    runtime_obs_start = run_created if run_created else None
+
+    # Build parity on the live-observation window ONLY: filter paper records
+    # to candle_time >= runtime_observation_start, and re-run the offline
+    # replay on that same candle sub-window. Otherwise parity would compare
+    # ~60d of replay signals against a few days of live paper signals.
+    obs_start = None
+    if runtime_obs_start:
+        try:
+            obs_start = datetime.fromisoformat(runtime_obs_start)
+        except ValueError:
+            obs_start = None
+
+    observ = _records_from(candles, obs_start) if obs_start else candles
+    paper_signals_all = store.get_signals(args.run_id)
+    paper_signals = len(
+        [
+            s
+            for s in paper_signals_all
+            if obs_start is None or _record_time(s, "candle_time") >= obs_start
+        ]
+    )
+    paper_orders = store.get_orders(args.run_id)
+    paper_entries = len(
+        [
+            o
+            for o in paper_orders
+            if o["order_type"] == "ENTRY"
+            and (obs_start is None or _record_time(o, "candle_time") >= obs_start)
+        ]
+    )
+    paper_exits_all = store.get_exits(args.run_id)
+    paper_exits = len(
+        [
+            e
+            for e in paper_exits_all
+            if obs_start is None or _record_time(e, "exit_candle_time") >= obs_start
+        ]
+    )
+
+    replay_obs = replay_offline(observ)
+    r_metrics = compute_metrics(replay_obs)
+    replay_signals = r_metrics.trade_count
+    replay_entries = r_metrics.trade_count
+    replay_exits = sum(r_metrics.exit_reasons.values())
     parity = build_parity(
         paper_signals,
         replay_signals,
@@ -233,6 +289,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         "executed_utc": utc_now().isoformat(),
         "run_id": args.run_id,
         "config_hash": cfg_hash,
+        "runtime_observation_start": runtime_obs_start,
         "dataset": aud.manifest_json,
         "metrics": {
             "trade_count": metrics.trade_count,
