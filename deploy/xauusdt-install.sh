@@ -119,15 +119,18 @@ fi
 
 OPS_ENV_FILE="$CONF_DIR/ops-api.env"
 if [[ ! -f "$OPS_ENV_FILE" ]]; then
+    OPS_TOKEN_VAL="$(openssl rand -hex 32 2>/dev/null || echo change-me)"
     cat > "$OPS_ENV_FILE" <<EOF
 # XAUUSDT ops-api secrets (PROJECT-OPS-004). Root-owned, mode 0600.
-XAUUSDT_OPS_TOKEN=$(openssl rand -hex 32 2>/dev/null || echo change-me)
+XAUUSDT_OPS_TOKEN=$OPS_TOKEN_VAL
+# Dashboard reads the same token (same env file).
+OPS_TOKEN=$OPS_TOKEN_VAL
 XAUUSDT_OPS_PORT=8090
 XAUUSDT_RUN_ID=$RUN_ID
 EOF
     chown root:xauusdt "$OPS_ENV_FILE"
     chmod 0600 "$OPS_ENV_FILE"
-    echo "created $OPS_ENV_FILE (0600) — copy XAUUSDT_OPS_TOKEN to the dashboard env too"
+    echo "created $OPS_ENV_FILE (0600) — XAUUSDT_OPS_TOKEN shared with dashboard via OPS_TOKEN"
 else
     echo "ops-api env exists: $OPS_ENV_FILE (kept as-is)"
 fi

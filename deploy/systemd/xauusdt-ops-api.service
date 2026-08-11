@@ -12,10 +12,10 @@ Group=xauusdt
 # Env: runtime identity + bearer token (0600, root-owned)
 EnvironmentFile=/etc/xauusdt/ops-api.env
 Environment=XAUUSDT_OPS_DB=/var/lib/xauusdt/paper_runs.db
-Environment=XAUUSDT_OPS_RUN_ID=${XAUUSDT_RUN_ID}
+Environment=XAUUSDT_OPS_RUN_ID=forward-paper-v3-candidate-20260716
 Environment=XAUUSDT_OPS_DEPLOYMENT=/var/lib/xauusdt/deployment.json
 ExecStart=/opt/xauusdt/.venv/bin/python -m uvicorn xauusdt.ops_api.main:app \
-    --host 127.0.0.1 --port ${XAUUSDT_OPS_PORT:-8090} --no-access-log
+    --host 127.0.0.1 --port 8090 --no-access-log
 Restart=on-failure
 RestartSec=10
 # Hardening: read-only access to the paper DB, no writes anywhere.

@@ -10,8 +10,7 @@ User=xauusdt
 Group=xauusdt
 EnvironmentFile=/etc/xauusdt/ops-api.env
 Environment=NODE_ENV=production
-Environment=OPS_API_URL=http://127.0.0.1:${XAUUSDT_OPS_PORT:-8090}
-Environment=OPS_TOKEN=${XAUUSDT_OPS_TOKEN}
+Environment=OPS_API_URL=http://127.0.0.1:8090
 ExecStart=/usr/bin/node /opt/xauusdt/dashboard/server.js
 Restart=on-failure
 RestartSec=10
