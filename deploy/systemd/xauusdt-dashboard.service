@@ -1,0 +1,28 @@
+[Unit]
+Description=XAUUSDT operations dashboard (Next.js, PROJECT-OPS-004)
+Documentation=https://github.com/rawrmingos-design/xauusdt-trading-platform
+After=network-online.target xauusdt-ops-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=xauusdt
+Group=xauusdt
+EnvironmentFile=/etc/xauusdt/ops-api.env
+Environment=NODE_ENV=production
+Environment=OPS_API_URL=http://127.0.0.1:${XAUUSDT_OPS_PORT:-8090}
+Environment=OPS_TOKEN=${XAUUSDT_OPS_TOKEN}
+ExecStart=/usr/bin/node /opt/xauusdt/dashboard/server.js
+Restart=on-failure
+RestartSec=10
+# Dashboard needs no writes; run locked down.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/opt/xauusdt/dashboard
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

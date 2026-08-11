@@ -98,7 +98,7 @@ fi
 chown -R root:root "$INSTALL_DIR"
 chmod -R o-w "$INSTALL_DIR" 2>/dev/null || chmod 0755 "$INSTALL_DIR"
 
-# --- 4. env file (only if absent — secrets never overwritten) ---
+# --- 4. env files (only if absent — secrets never overwritten) ---
 if [[ ! -f "$ENV_FILE" ]]; then
     cat > "$ENV_FILE" <<EOF
 # XAUUSDT paper runtime secrets (PROJECT-OPS-001). Root-owned, mode 0600.
@@ -117,6 +117,21 @@ else
     echo "env file exists: $ENV_FILE (kept as-is)"
 fi
 
+OPS_ENV_FILE="$CONF_DIR/ops-api.env"
+if [[ ! -f "$OPS_ENV_FILE" ]]; then
+    cat > "$OPS_ENV_FILE" <<EOF
+# XAUUSDT ops-api secrets (PROJECT-OPS-004). Root-owned, mode 0600.
+XAUUSDT_OPS_TOKEN=$(openssl rand -hex 32 2>/dev/null || echo change-me)
+XAUUSDT_OPS_PORT=8090
+XAUUSDT_RUN_ID=$RUN_ID
+EOF
+    chown root:xauusdt "$OPS_ENV_FILE"
+    chmod 0600 "$OPS_ENV_FILE"
+    echo "created $OPS_ENV_FILE (0600) — copy XAUUSDT_OPS_TOKEN to the dashboard env too"
+else
+    echo "ops-api env exists: $OPS_ENV_FILE (kept as-is)"
+fi
+
 # --- 5. helper scripts ---
 mkdir -p /opt/xauusdt/bin
 install -m 0755 "$APP_SRC/deploy/xauusdt-backup.sh" /opt/xauusdt/bin/
@@ -129,6 +144,23 @@ install -m 0644 "$APP_SRC"/deploy/systemd/xauusdt-paper-health.service /etc/syst
 install -m 0644 "$APP_SRC"/deploy/systemd/xauusdt-paper-health.timer /etc/systemd/system/
 install -m 0644 "$APP_SRC"/deploy/systemd/xauusdt-paper-backup.service /etc/systemd/system/
 install -m 0644 "$APP_SRC"/deploy/systemd/xauusdt-paper-backup.timer /etc/systemd/system/
+install -m 0644 "$APP_SRC"/deploy/systemd/xauusdt-ops-api.service /etc/systemd/system/
+install -m 0644 "$APP_SRC"/deploy/systemd/xauusdt-dashboard.service /etc/systemd/system/
+
+# --- 6b. dashboard standalone build ---
+# Next.js `output: standalone` produces self-contained server.js in
+# .next/standalone. Copy it so the service user can run it read-only.
+if [[ -d "$APP_SRC/dashboard/.next/standalone" ]]; then
+    mkdir -p "$INSTALL_DIR/dashboard"
+    cp -r "$APP_SRC/dashboard/.next/standalone/." "$INSTALL_DIR/dashboard/"
+    cp -r "$APP_SRC/dashboard/.next/static" "$INSTALL_DIR/dashboard/.next/static" 2>/dev/null || true
+    cp -r "$APP_SRC/dashboard/public" "$INSTALL_DIR/dashboard/public" 2>/dev/null || true
+    chown -R root:xauusdt "$INSTALL_DIR/dashboard"
+    chmod -R o-w "$INSTALL_DIR/dashboard"
+    echo "dashboard standalone installed to $INSTALL_DIR/dashboard"
+else
+    echo "WARN: dashboard/.next/standalone missing — run 'npm run build' in dashboard/ first (dashboard service will not work)"
+fi
 
 systemctl daemon-reload
 

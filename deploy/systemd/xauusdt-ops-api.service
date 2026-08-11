@@ -1,0 +1,32 @@
+[Unit]
+Description=XAUUSDT operations API (read-only observability, PROJECT-OPS-004)
+Documentation=https://github.com/rawrmingos-design/xauusdt-trading-platform
+After=network-online.target
+Wants=network-online.target
+After=xauusdt-paper.service
+
+[Service]
+Type=simple
+User=xauusdt
+Group=xauusdt
+# Env: runtime identity + bearer token (0600, root-owned)
+EnvironmentFile=/etc/xauusdt/ops-api.env
+Environment=XAUUSDT_OPS_DB=/var/lib/xauusdt/paper_runs.db
+Environment=XAUUSDT_OPS_RUN_ID=${XAUUSDT_RUN_ID}
+Environment=XAUUSDT_OPS_DEPLOYMENT=/var/lib/xauusdt/deployment.json
+ExecStart=/opt/xauusdt/.venv/bin/python -m uvicorn xauusdt.ops_api.main:app \
+    --host 127.0.0.1 --port ${XAUUSDT_OPS_PORT:-8090} --no-access-log
+Restart=on-failure
+RestartSec=10
+# Hardening: read-only access to the paper DB, no writes anywhere.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/var/lib/xauusdt /var/backups/xauusdt
+RestrictSUIDSGID=true
+LockPersonality=true
+PrivateDevices=true
+
+[Install]
+WantedBy=multi-user.target

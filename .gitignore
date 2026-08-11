@@ -12,3 +12,6 @@ build/
 .ruff_cache/
 .pytest_cache/
 *.log
+# dashboard build artifacts
+dashboard/node_modules/
+dashboard/.next/
