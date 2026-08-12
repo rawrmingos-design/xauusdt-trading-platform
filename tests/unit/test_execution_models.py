@@ -137,3 +137,21 @@ def test_account_snapshot_mode_explicit():
     )
     assert acc.mode == "DEMO"
     assert acc.trade_allowed
+
+
+def test_order_intent_created_at_utc_aware():
+    """OrderIntent.created_at must be timezone-aware UTC, never naive."""
+    from datetime import timedelta
+
+    from xauusdt.execution.orders import OrderIntent
+
+    intent = OrderIntent(
+        symbol="XAUUSD",
+        side=OrderSide.LONG,
+        kind=OrderKind.MARKET,
+        volume=0.05,
+        entry_price=2400.0,
+    )
+    assert intent.created_at.tzinfo is not None
+    assert intent.created_at.utcoffset() == timedelta(0)
+    assert intent.created_at.tzinfo is UTC

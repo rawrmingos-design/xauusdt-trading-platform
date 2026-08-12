@@ -20,7 +20,12 @@ from xauusdt.execution.models import (
     PositionSnapshot,
     SymbolInfo,
 )
-from xauusdt.execution.mt5.models import Mt5OrderRequest, Mt5Retcode
+from xauusdt.execution.mt5.models import (
+    Mt5OrderRequest,
+    RetcodeClass,
+    TradeRetcode,
+    classify_retcode,
+)
 from xauusdt.execution.orders import ExecutionResult, OrderIntent
 
 
@@ -115,17 +120,17 @@ def order_to_domain(order: Any) -> OrderState:
 
 
 def intent_to_request(intent: OrderIntent, action: int, price: float) -> Mt5OrderRequest:
-    """Map domain OrderIntent -> MT5 order request payload (write path)."""
-    mt5_type = (
-        (0 if intent.side == OrderSide.LONG else 1)
-        if intent.kind == OrderKind.MARKET
-        else (2 if intent.side == OrderSide.LONG else 3)
-    )
+    """Map domain OrderIntent -> MT5 order request payload (write path).
+
+    MQL5 order types (ENUM_ORDER_TYPE):
+        BUY=0, SELL=1, BUY_LIMIT=2, SELL_LIMIT=3, BUY_STOP=4, SELL_STOP=5
+    """
+    order_type = intent_to_mt5_order_type(intent)
     return Mt5OrderRequest(
         action=action,
         symbol=intent.symbol,
         volume=intent.volume,
-        type=mt5_type,
+        type=order_type,
         price=price,
         sl=intent.stop_loss,
         tp=intent.take_profit,
@@ -134,26 +139,63 @@ def intent_to_request(intent: OrderIntent, action: int, price: float) -> Mt5Orde
     )
 
 
+def intent_to_mt5_order_type(intent: OrderIntent) -> int:
+    """Map (side, kind) to the exact MQL5 order type.
+
+    LONG  + MARKET -> BUY        (0)
+    SHORT + MARKET -> SELL       (1)
+    LONG  + LIMIT  -> BUY_LIMIT  (2)
+    SHORT + LIMIT  -> SELL_LIMIT (3)
+    LONG  + STOP   -> BUY_STOP   (4)
+    SHORT + STOP   -> SELL_STOP  (5)
+    """
+    if intent.kind == OrderKind.MARKET:
+        return 0 if intent.side == OrderSide.LONG else 1
+    if intent.kind == OrderKind.LIMIT:
+        return 2 if intent.side == OrderSide.LONG else 3
+    if intent.kind == OrderKind.STOP:
+        return 4 if intent.side == OrderSide.LONG else 5
+    raise ValueError(f"unsupported order kind {intent.kind!r}")
+
+
 def request_result_to_domain(retcode: int, comment: str = "", order_id: int = 0) -> ExecutionResult:
-    """Map MT5 order_check/order_send retcode -> ExecutionResult."""
-    if retcode == Mt5Retcode.DONE or retcode == Mt5Retcode.PLACED:
+    """Map MT5 order_check/order_send retcode -> ExecutionResult.
+
+    Uses the official MQL5 retcode classification. Unknown codes are NEVER
+    treated as success.
+    """
+    rc = classify_retcode(retcode)
+    if rc is RetcodeClass.SUCCESS:
+        state = OrderState.FILLED if retcode == TradeRetcode.DONE.value else OrderState.SUBMITTED
         return ExecutionResult.accepted(
             venue_order_id=str(order_id),
-            state=OrderState.FILLED if retcode == Mt5Retcode.DONE else OrderState.SUBMITTED,
+            state=state,
             message=comment,
         )
-    code_map = {
-        Mt5Retcode.MARGIN_INSUFFICIENT: "margin_insufficient",
-        Mt5Retcode.MARKET_CLOSED: "market_closed",
-        Mt5Retcode.INVALID_REQUEST: "invalid_request",
-        Mt5Retcode.INVALID_PRICE: "invalid_price",
-        Mt5Retcode.INVALID_VOLUME: "invalid_volume",
-        Mt5Retcode.NO_MONEY: "no_money",
-        Mt5Retcode.TRADE_DISABLED: "trade_disabled",
-        Mt5Retcode.PRICE_OFF: "price_off",
-        Mt5Retcode.REJECTED: "rejected",
-    }
+    if rc is RetcodeClass.PARTIAL:
+        return ExecutionResult.accepted(
+            venue_order_id=str(order_id),
+            state=OrderState.PARTIALLY_FILLED,
+            message=comment,
+        )
+    code = _rejection_code(retcode, rc)
     return ExecutionResult.rejected(
-        code=code_map.get(retcode, f"retcode_{retcode}"),
-        message=comment or f"MT5 retcode {retcode}",
+        code=code,
+        message=comment or f"MT5 retcode {retcode} ({rc.value})",
+        state=OrderState.REJECTED,
     )
+
+
+def _rejection_code(retcode: int, rc: RetcodeClass) -> str:
+    if rc is RetcodeClass.RETRYABLE:
+        return "retryable"
+    if rc is RetcodeClass.VENUE_ERROR:
+        return "venue_error"
+    if rc is RetcodeClass.UNKNOWN:
+        return f"unknown_retcode_{retcode}"
+    # REJECTED (or anything classified as rejected)
+    try:
+        name = TradeRetcode(retcode).name.lower()
+    except ValueError:
+        name = "rejected"
+    return name

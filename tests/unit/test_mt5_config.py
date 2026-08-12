@@ -96,3 +96,36 @@ def test_ensure_demo_or_paper_blocks_live():
     s = Mt5Settings.from_env(_env(MT5_MODE="live"))
     with pytest.raises(ModeGuardError):
         s.ensure_demo_or_paper("write")
+
+
+def test_account_mode_from_int_official():
+    from xauusdt.execution.mt5.config import AccountMode
+
+    assert AccountMode.from_int(0) is AccountMode.DEMO
+    assert AccountMode.from_int(1) is AccountMode.CONTEST
+    assert AccountMode.from_int(2) is AccountMode.REAL
+    with pytest.raises(ModeGuardError):
+        AccountMode.from_int(99)
+
+
+def test_execution_environment_demo_real_blocked():
+    from xauusdt.execution.mt5.config import AccountMode, ExecutionEnvironment
+
+    env = ExecutionEnvironment(configured_mode="demo", actual_account_mode=AccountMode.REAL)
+    with pytest.raises(ModeGuardError):
+        env.allow_execution()
+
+
+def test_execution_environment_demo_demo_allowed():
+    from xauusdt.execution.mt5.config import AccountMode, ExecutionEnvironment
+
+    env = ExecutionEnvironment(configured_mode="demo", actual_account_mode=AccountMode.DEMO)
+    env.allow_execution()  # no raise
+
+
+def test_execution_environment_live_blocked_even_real():
+    from xauusdt.execution.mt5.config import AccountMode, ExecutionEnvironment
+
+    env = ExecutionEnvironment(configured_mode="live", actual_account_mode=AccountMode.REAL)
+    with pytest.raises(ModeGuardError):
+        env.allow_execution()

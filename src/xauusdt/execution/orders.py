@@ -12,7 +12,7 @@ reconcile ambiguous broker responses.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from xauusdt.execution.models import OrderKind, OrderSide, OrderState
@@ -33,7 +33,7 @@ class OrderIntent:
     stop_loss: float = 0.0  # 0 = none
     take_profit: float = 0.0  # 0 = none
     comment: str = ""
-    created_at: datetime = field(default_factory=lambda: datetime.now().astimezone())
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     client_order_id: str = ""  # idempotency key (empty = not tracked)
 
     def to_dict(self) -> dict[str, Any]:

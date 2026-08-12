@@ -15,9 +15,14 @@ from xauusdt.execution.errors import (
     ModeGuardError,
     SymbolUnavailableError,
 )
+from xauusdt.execution.models import SymbolInfo
 from xauusdt.execution.mt5.adapter import Mt5ExecutionAdapter
 from xauusdt.execution.mt5.client import Mt5Client
-from xauusdt.execution.mt5.config import Mt5Settings
+from xauusdt.execution.mt5.config import (
+    AccountMode,
+    ExecutionEnvironment,
+    Mt5Settings,
+)
 
 
 def _settings(**overrides):
@@ -254,3 +259,178 @@ def test_meta_trader5_never_imported_at_module_level():
     ):
         src2 = open(path, encoding="utf-8").read()
         assert not import_stmt.search(src2), f"{path} imports MetaTrader5 at module level"
+
+
+# --------------------------------------------------------------------------
+# Symbol discovery — fail-safe, deterministic, ambiguity -> error
+# --------------------------------------------------------------------------
+
+
+def test_resolve_symbol_explicit_exists(fake_mt5):
+    a = Mt5ExecutionAdapter(_settings(symbol="XAUUSD"))
+    a.connect()
+    assert a.resolve_symbol("XAUUSD") == "XAUUSD"
+
+
+def test_resolve_symbol_explicit_unknown_raises(fake_mt5):
+    a = Mt5ExecutionAdapter(_settings(symbol="XAUUSDT"))
+    a.connect()
+    with pytest.raises(SymbolUnavailableError):
+        a.resolve_symbol("XAUUSDT")
+
+
+def test_resolve_symbol_explicit_trade_disabled_raises(fake_mt5):
+    fake_mt5.symbol.trade_mode = "NO"
+    a = Mt5ExecutionAdapter(_settings(symbol="XAUUSD"))
+    a.connect()
+    with pytest.raises(SymbolUnavailableError):
+        a.resolve_symbol("XAUUSD")
+
+
+def test_resolve_symbol_discovery_exact_single(fake_mt5):
+    fake_mt5.symbols = ["EURUSD", "XAUUSD", "GBPUSD"]
+    a = Mt5ExecutionAdapter(_settings(symbol=""))
+    a.connect()
+    assert a.resolve_symbol("") == "XAUUSD"
+
+
+def test_resolve_symbol_discovery_suffix_single(fake_mt5):
+    fake_mt5.symbols = ["EURUSD", "XAUUSDm", "GBPUSD"]
+    a = Mt5ExecutionAdapter(_settings(symbol=""))
+    a.connect()
+    assert a.resolve_symbol("") == "XAUUSDm"
+
+
+def test_resolve_symbol_discovery_multiple_candidates_fails_closed(fake_mt5):
+    fake_mt5.symbols = ["XAUUSD", "XAUUSDm", "XAUUSDc", "GOLD"]
+    a = Mt5ExecutionAdapter(_settings(symbol=""))
+    a.connect()
+    with pytest.raises(SymbolUnavailableError) as ei:
+        a.resolve_symbol("")
+    assert "expected exactly one" in str(ei.value)
+
+
+def test_resolve_symbol_discovery_none_fails_closed(fake_mt5):
+    fake_mt5.symbols = ["EURUSD", "GBPUSD"]
+    a = Mt5ExecutionAdapter(_settings(symbol=""))
+    a.connect()
+    with pytest.raises(SymbolUnavailableError) as ei:
+        a.resolve_symbol("")
+    assert "found 0 candidates" in str(ei.value)
+
+
+def test_resolve_symbol_discovery_gold_exact(fake_mt5):
+    fake_mt5.symbols = ["EURUSD", "GOLD", "GBPUSD"]
+    a = Mt5ExecutionAdapter(_settings(symbol=""))
+    a.connect()
+    assert a.resolve_symbol("") == "GOLD"
+
+
+def test_discover_gold_candidates_deterministic():
+    a = Mt5ExecutionAdapter(_settings())
+    got = a._discover_gold_candidates(["XAUUSDc", "XAUUSD", "XAUUSDm", "GOLD", "EURUSD"])
+    # sorted, deduped, case-insensitive
+    assert got == ["GOLD", "XAUUSD", "XAUUSDc", "XAUUSDm"]
+
+
+# --------------------------------------------------------------------------
+# Mode verification — configured vs actual MT5 account mode
+# --------------------------------------------------------------------------
+
+
+def test_connect_demo_configured_demo_account_ok(fake_mt5):
+    fake_mt5.account.trade_mode = 0  # DEMO
+    a = Mt5ExecutionAdapter(_settings(mode="demo"))
+    a.connect()  # must not raise
+
+
+def test_connect_demo_configured_real_account_raises(fake_mt5):
+    fake_mt5.account.trade_mode = 2  # REAL
+    a = Mt5ExecutionAdapter(_settings(mode="demo"))
+    with pytest.raises(ModeGuardError):
+        a.connect()
+
+
+def test_connect_paper_configured_any_account_ok(fake_mt5):
+    fake_mt5.account.trade_mode = 2  # REAL — paper is read-only anyway
+    a = Mt5ExecutionAdapter(_settings(mode="paper"))
+    a.connect()  # must not raise
+
+
+def test_connect_live_configured_always_raises(fake_mt5):
+    fake_mt5.account.trade_mode = 2  # REAL
+    # constructor already guards: MT5_MODE=live is never auto-approved
+    with pytest.raises(ModeGuardError):
+        Mt5ExecutionAdapter(_settings(mode="live"))
+
+
+def test_execution_environment_demo_demo_allowed():
+    env = ExecutionEnvironment(configured_mode="demo", actual_account_mode=AccountMode.DEMO)
+    env.allow_execution()  # must not raise
+
+
+def test_execution_environment_demo_real_blocked():
+    env = ExecutionEnvironment(configured_mode="demo", actual_account_mode=AccountMode.REAL)
+    with pytest.raises(ModeGuardError):
+        env.allow_execution()
+
+
+def test_execution_environment_live_any_blocked():
+    for actual in (AccountMode.DEMO, AccountMode.REAL, AccountMode.CONTEST):
+        env = ExecutionEnvironment(configured_mode="live", actual_account_mode=actual)
+        with pytest.raises(ModeGuardError):
+            env.allow_execution()
+
+
+# --------------------------------------------------------------------------
+# SymbolInfo volume validation
+# --------------------------------------------------------------------------
+
+
+def _sym(**kw):
+    base = dict(
+        symbol="XAUUSD",
+        digits=2,
+        point=0.01,
+        tick_size=0.01,
+        tick_value=1.0,
+        contract_size=100.0,
+        volume_min=0.01,
+        volume_max=100.0,
+        volume_step=0.01,
+    )
+    base.update(kw)
+    return SymbolInfo(**base)  # type: ignore[arg-type]
+
+
+def test_volume_normalize_normal():
+    assert _sym().normalize_volume(0.05) == 0.05
+
+
+def test_volume_normalize_below_min():
+    assert _sym().normalize_volume(0.001) == 0.01
+
+
+def test_volume_normalize_above_max():
+    assert _sym().normalize_volume(999.0) == 100.0
+
+
+def test_volume_normalize_exact_step():
+    assert _sym().normalize_volume(0.03) == 0.03
+
+
+def test_volume_normalize_fractional_step():
+    # 0.015 -> floor to 0.01 grid
+    assert _sym().normalize_volume(0.015) == 0.01
+
+
+def test_volume_invalid_step_zero_raises():
+    with pytest.raises(ValueError):
+        _sym(volume_step=0)
+
+
+def test_volume_invalid_min_max_raises():
+    with pytest.raises(ValueError):
+        _sym(volume_min=0)
+    with pytest.raises(ValueError):
+        _sym(volume_min=5.0, volume_max=1.0)

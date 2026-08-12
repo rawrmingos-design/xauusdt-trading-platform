@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from enum import Enum
 
 from xauusdt.execution.errors import ModeGuardError
 
@@ -21,6 +22,68 @@ class Mt5Mode:
     LIVE = "live"
 
     _VALID = {PAPER, DEMO, LIVE}
+
+
+class AccountMode(Enum):
+    """Official MQL5 account trade modes (ENUM_ACCOUNT_TRADE_MODE).
+
+    0 = ACCOUNT_TRADE_MODE_DEMO
+    1 = ACCOUNT_TRADE_MODE_CONTEST
+    2 = ACCOUNT_TRADE_MODE_REAL
+    """
+
+    DEMO = 0
+    CONTEST = 1
+    REAL = 2
+
+    @classmethod
+    def from_int(cls, value: int) -> AccountMode:
+        try:
+            return cls(value)
+        except ValueError as exc:
+            raise ModeGuardError(f"unknown MT5 account trade mode {value!r}") from exc
+
+
+@dataclass(frozen=True)
+class ExecutionEnvironment:
+    """Runtime execution environment: configured intent vs broker-reported truth.
+
+    ``configured_mode`` comes from MT5_MODE (operator intent).
+    ``actual_account_mode`` comes from the broker via account_info() (runtime
+    truth). Execution is only allowed when both agree on demo (or paper).
+    """
+
+    configured_mode: str
+    actual_account_mode: AccountMode
+
+    @property
+    def actual_name(self) -> str:
+        return self.actual_account_mode.name
+
+    def allow_execution(self) -> None:
+        """Raise ModeGuardError unless the environment is safely demo/paper.
+
+        - configured=demo + actual=DEMO      -> allowed
+        - configured=demo + actual=REAL      -> blocked (hard fail)
+        - configured=paper + actual=anything -> read-only (no writes)
+        - configured=live  + actual=REAL     -> blocked (Phase 3 gate)
+        - configured=live  + actual=DEMO     -> blocked (mode confusion)
+        """
+        if self.configured_mode == Mt5Mode.PAPER:
+            return  # read-only by design; no writes regardless of account
+        if self.configured_mode == Mt5Mode.DEMO:
+            if self.actual_account_mode is AccountMode.DEMO:
+                return
+            raise ModeGuardError(
+                f"configured mode=demo but actual MT5 account mode is "
+                f"{self.actual_account_mode.name!r}; refusing execution"
+            )
+        if self.configured_mode == Mt5Mode.LIVE:
+            raise ModeGuardError(
+                "MT5_MODE=live requires an explicit separate authorization gate; "
+                "not auto-approved in Phase 1+2"
+            )
+        raise ModeGuardError(f"invalid configured mode {self.configured_mode!r}")
 
 
 @dataclass(frozen=True)

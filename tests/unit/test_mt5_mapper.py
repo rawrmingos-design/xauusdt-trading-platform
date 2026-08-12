@@ -15,12 +15,15 @@ from xauusdt.execution.models import (
 )
 from xauusdt.execution.mt5.mapper import (
     account_to_domain,
+    intent_to_mt5_order_type,
     intent_to_request,
     order_to_domain,
     position_to_domain,
+    request_result_to_domain,
     symbol_to_domain,
     tick_to_domain,
 )
+from xauusdt.execution.mt5.models import RetcodeClass, TradeRetcode, classify_retcode
 from xauusdt.execution.orders import OrderIntent
 
 
@@ -167,3 +170,149 @@ def test_intent_to_request_market_sell():
     )
     req = intent_to_request(intent, action=1, price=2399.8)
     assert req.type == 1  # SELL
+
+
+# --------------------------------------------------------------------------
+# OrderKind -> MT5 order type: all six side/kind combinations
+# --------------------------------------------------------------------------
+
+
+def _intent(kind: OrderKind, side: OrderSide) -> OrderIntent:
+    return OrderIntent(
+        symbol="XAUUSD",
+        side=side,
+        kind=kind,
+        volume=0.05,
+        entry_price=2400.0,
+    )
+
+
+def test_order_type_long_market_buy():
+    assert intent_to_mt5_order_type(_intent(OrderKind.MARKET, OrderSide.LONG)) == 0
+
+
+def test_order_type_short_market_sell():
+    assert intent_to_mt5_order_type(_intent(OrderKind.MARKET, OrderSide.SHORT)) == 1
+
+
+def test_order_type_long_limit_buy_limit():
+    assert intent_to_mt5_order_type(_intent(OrderKind.LIMIT, OrderSide.LONG)) == 2
+
+
+def test_order_type_short_limit_sell_limit():
+    assert intent_to_mt5_order_type(_intent(OrderKind.LIMIT, OrderSide.SHORT)) == 3
+
+
+def test_order_type_long_stop_buy_stop():
+    assert intent_to_mt5_order_type(_intent(OrderKind.STOP, OrderSide.LONG)) == 4
+
+
+def test_order_type_short_stop_sell_stop():
+    assert intent_to_mt5_order_type(_intent(OrderKind.STOP, OrderSide.SHORT)) == 5
+
+
+def test_order_type_all_six_combinations():
+    expected = {
+        (OrderKind.MARKET, OrderSide.LONG): 0,
+        (OrderKind.MARKET, OrderSide.SHORT): 1,
+        (OrderKind.LIMIT, OrderSide.LONG): 2,
+        (OrderKind.LIMIT, OrderSide.SHORT): 3,
+        (OrderKind.STOP, OrderSide.LONG): 4,
+        (OrderKind.STOP, OrderSide.SHORT): 5,
+    }
+    for (kind, side), want in expected.items():
+        assert intent_to_mt5_order_type(_intent(kind, side)) == want, (kind, side)
+
+
+# --------------------------------------------------------------------------
+# Retcode classification (official MQL5 ENUM_TRADE_RETCODE)
+# --------------------------------------------------------------------------
+
+
+def test_retcode_classification_success():
+    assert classify_retcode(TradeRetcode.DONE.value) is RetcodeClass.SUCCESS
+    assert classify_retcode(TradeRetcode.PLACED.value) is RetcodeClass.SUCCESS
+
+
+def test_retcode_classification_partial():
+    assert classify_retcode(TradeRetcode.DONE_PARTIAL.value) is RetcodeClass.PARTIAL
+
+
+def test_retcode_classification_retryable():
+    for rc in (
+        TradeRetcode.REQUOTE,
+        TradeRetcode.PRICE_CHANGED,
+        TradeRetcode.PRICE_OFF,
+        TradeRetcode.TIMEOUT,
+    ):
+        assert classify_retcode(rc.value) is RetcodeClass.RETRYABLE, rc
+
+
+def test_retcode_classification_rejected():
+    for rc in (
+        TradeRetcode.REJECT,
+        TradeRetcode.INVALID_VOLUME,
+        TradeRetcode.INVALID_PRICE,
+        TradeRetcode.INVALID_STOPS,
+        TradeRetcode.NO_MONEY,
+    ):
+        assert classify_retcode(rc.value) is RetcodeClass.REJECTED, rc
+
+
+def test_retcode_classification_venue_error():
+    for rc in (
+        TradeRetcode.TRADE_DISABLED,
+        TradeRetcode.MARKET_CLOSED,
+    ):
+        assert classify_retcode(rc.value) is RetcodeClass.VENUE_ERROR, rc
+
+
+def test_retcode_classification_unknown_is_never_success():
+    assert classify_retcode(99999) is RetcodeClass.UNKNOWN
+    assert classify_retcode(0) is RetcodeClass.UNKNOWN
+    assert classify_retcode(-1) is RetcodeClass.UNKNOWN
+
+
+def test_request_result_done_is_filled():
+    res = request_result_to_domain(TradeRetcode.DONE.value, comment="ok", order_id=7)
+    assert res.ok
+    assert res.state == OrderState.FILLED
+    assert res.venue_order_id == "7"
+
+
+def test_request_result_placed_is_submitted():
+    res = request_result_to_domain(TradeRetcode.PLACED.value, comment="placed", order_id=8)
+    assert res.ok
+    assert res.state == OrderState.SUBMITTED
+
+
+def test_request_result_done_partial_is_accepted_partial():
+    res = request_result_to_domain(TradeRetcode.DONE_PARTIAL.value, order_id=9)
+    assert res.ok
+    assert res.state == OrderState.PARTIALLY_FILLED
+
+
+def test_request_result_requote_is_rejected_retryable():
+    res = request_result_to_domain(TradeRetcode.REQUOTE.value)
+    assert not res.ok
+    assert res.rejection_code == "retryable"
+    assert res.state == OrderState.REJECTED
+
+
+def test_request_result_invalid_volume_code():
+    res = request_result_to_domain(TradeRetcode.INVALID_VOLUME.value)
+    assert not res.ok
+    assert res.rejection_code == "invalid_volume"
+
+
+def test_request_result_market_closed_venue_error():
+    res = request_result_to_domain(TradeRetcode.MARKET_CLOSED.value)
+    assert not res.ok
+    assert res.rejection_code == "venue_error"
+
+
+def test_request_result_unknown_is_rejected_not_success():
+    res = request_result_to_domain(99999)
+    assert not res.ok
+    assert res.rejection_code == "unknown_retcode_99999"
+    assert res.state == OrderState.REJECTED

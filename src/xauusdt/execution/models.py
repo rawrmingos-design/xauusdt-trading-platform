@@ -100,8 +100,19 @@ class SymbolInfo:
     stop_level: int = 0  # minimum stop distance in points (0 = none)
     spread: float = 0.0
 
+    def __post_init__(self) -> None:
+        """Validate volume constraints; invalid metadata must fail explicitly."""
+        if self.volume_min <= 0:
+            raise ValueError(f"volume_min must be > 0, got {self.volume_min}")
+        if self.volume_max < self.volume_min:
+            raise ValueError(
+                f"volume_max ({self.volume_max}) must be >= volume_min ({self.volume_min})"
+            )
+        if self.volume_step <= 0:
+            raise ValueError(f"volume_step must be > 0, got {self.volume_step}")
+
     def normalize_volume(self, raw: float) -> float:
-        """Floor a requested volume to the symbol's step grid."""
+        """Floor a requested volume to the symbol's deterministic step grid."""
         if raw < self.volume_min:
             return self.volume_min
         if raw > self.volume_max:
