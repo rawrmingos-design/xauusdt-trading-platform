@@ -69,5 +69,13 @@ ignore = ["E501"]
 strict = true
 python_version = "3.11"
 
+[[tool.mypy.overrides]]
+module = "xauusdt.execution.mt5.client"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "MetaTrader5"
+ignore_missing_imports = true
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/xauusdt"]
