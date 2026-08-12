@@ -234,6 +234,101 @@ def test_retcode_classification_success():
     assert classify_retcode(TradeRetcode.PLACED.value) is RetcodeClass.SUCCESS
 
 
+def test_retcode_official_values_exact():
+    """Lock the exact numeric values to the official MQL5 documentation."""
+    official = {
+        "REQUOTE": 10004,
+        "REJECT": 10006,
+        "CANCEL": 10007,
+        "PLACED": 10008,
+        "DONE": 10009,
+        "DONE_PARTIAL": 10010,
+        "ERROR": 10011,
+        "TIMEOUT": 10012,
+        "INVALID": 10013,
+        "INVALID_VOLUME": 10014,
+        "INVALID_PRICE": 10015,
+        "INVALID_STOPS": 10016,
+        "TRADE_DISABLED": 10017,
+        "MARKET_CLOSED": 10018,
+        "NO_MONEY": 10019,
+        "PRICE_CHANGED": 10020,
+        "PRICE_OFF": 10021,
+        "INVALID_EXPIRATION": 10022,
+        "ORDER_CHANGED": 10023,
+        "TOO_MANY_REQUESTS": 10024,
+        "NO_CHANGES": 10025,
+        "SERVER_DISABLES_AT": 10026,
+        "CLIENT_DISABLES_AT": 10027,
+        "LOCKED": 10028,
+        "FROZEN": 10029,
+        "INVALID_FILL": 10030,
+        "CONNECTION": 10031,
+        "ONLY_REAL": 10032,
+        "LIMIT_ORDERS": 10033,
+        "LIMIT_VOLUME": 10034,
+        "INVALID_ORDER": 10035,
+        "POSITION_CLOSED": 10036,
+        "INVALID_CLOSE_VOLUME": 10038,
+        "CLOSE_ORDER_EXIST": 10039,
+        "LIMIT_POSITIONS": 10040,
+        "REJECT_CANCEL": 10041,
+        "LONG_ONLY": 10042,
+        "SHORT_ONLY": 10043,
+        "CLOSE_ONLY": 10044,
+        "FIFO_CLOSE": 10045,
+        "HEDGE_PROHIBITED": 10046,
+    }
+    for name, value in official.items():
+        member = getattr(TradeRetcode, name)
+        assert member.value == value, f"{name} should be {value}, got {member.value}"
+
+
+def test_retcode_classification_exact_mapping():
+    """Explicit classification per official retcode number."""
+    cases = {
+        10004: RetcodeClass.RETRYABLE,  # REQUOTE
+        10006: RetcodeClass.REJECTED,  # REJECT
+        10007: RetcodeClass.REJECTED,  # CANCEL
+        10008: RetcodeClass.SUCCESS,  # PLACED
+        10009: RetcodeClass.SUCCESS,  # DONE
+        10010: RetcodeClass.PARTIAL,  # DONE_PARTIAL
+        10011: RetcodeClass.REJECTED,  # ERROR
+        10012: RetcodeClass.RETRYABLE,  # TIMEOUT
+        10013: RetcodeClass.REJECTED,  # INVALID
+        10014: RetcodeClass.REJECTED,  # INVALID_VOLUME
+        10015: RetcodeClass.REJECTED,  # INVALID_PRICE
+        10016: RetcodeClass.REJECTED,  # INVALID_STOPS
+        10017: RetcodeClass.VENUE_ERROR,  # TRADE_DISABLED
+        10018: RetcodeClass.VENUE_ERROR,  # MARKET_CLOSED
+        10019: RetcodeClass.REJECTED,  # NO_MONEY
+        10020: RetcodeClass.RETRYABLE,  # PRICE_CHANGED
+        10021: RetcodeClass.RETRYABLE,  # PRICE_OFF
+        10024: RetcodeClass.RETRYABLE,  # TOO_MANY_REQUESTS
+        10026: RetcodeClass.VENUE_ERROR,  # SERVER_DISABLES_AT
+        10027: RetcodeClass.VENUE_ERROR,  # CLIENT_DISABLES_AT
+        10028: RetcodeClass.VENUE_ERROR,  # LOCKED
+        10029: RetcodeClass.VENUE_ERROR,  # FROZEN
+        10030: RetcodeClass.REJECTED,  # INVALID_FILL
+        10031: RetcodeClass.VENUE_ERROR,  # CONNECTION
+        10032: RetcodeClass.VENUE_ERROR,  # ONLY_REAL
+        10035: RetcodeClass.REJECTED,  # INVALID_ORDER
+        10036: RetcodeClass.VENUE_ERROR,  # POSITION_CLOSED
+    }
+    for code, want in cases.items():
+        assert classify_retcode(code) is want, (
+            f"retcode {code}: expected {want.value}, got {classify_retcode(code).value}"
+        )
+
+
+def test_retcode_classification_unknown_is_never_success():
+    assert classify_retcode(99999) is RetcodeClass.UNKNOWN
+    assert classify_retcode(0) is RetcodeClass.UNKNOWN
+    assert classify_retcode(-1) is RetcodeClass.UNKNOWN
+    assert classify_retcode(10005) is RetcodeClass.UNKNOWN  # unused official gap
+    assert classify_retcode(10037) is RetcodeClass.UNKNOWN  # unused official gap
+
+
 def test_retcode_classification_partial():
     assert classify_retcode(TradeRetcode.DONE_PARTIAL.value) is RetcodeClass.PARTIAL
 
@@ -265,12 +360,6 @@ def test_retcode_classification_venue_error():
         TradeRetcode.MARKET_CLOSED,
     ):
         assert classify_retcode(rc.value) is RetcodeClass.VENUE_ERROR, rc
-
-
-def test_retcode_classification_unknown_is_never_success():
-    assert classify_retcode(99999) is RetcodeClass.UNKNOWN
-    assert classify_retcode(0) is RetcodeClass.UNKNOWN
-    assert classify_retcode(-1) is RetcodeClass.UNKNOWN
 
 
 def test_request_result_done_is_filled():
