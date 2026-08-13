@@ -88,8 +88,17 @@ def test_login_file_reads_credentials(tmp_path):
 
 
 def test_ensure_demo_or_paper_allows_demo():
-    s = Mt5Settings.from_env(_env(MT5_MODE="demo"))
+    s = Mt5Settings.from_env(_env(MT5_MODE="demo", MT5_MAGIC="42"))
     s.ensure_demo_or_paper("write")  # no raise
+
+
+def test_ensure_demo_or_paper_blocks_magic_zero_write():
+    """Phase 3 (contract §4.4): write with magic=0 is refused — no namespace."""
+    s = Mt5Settings.from_env(_env(MT5_MODE="demo"))  # no MT5_MAGIC → 0
+    with pytest.raises(ModeGuardError):
+        s.ensure_demo_or_paper("write")
+    # read path unaffected
+    s.ensure_demo_or_paper("read")  # no raise
 
 
 def test_ensure_demo_or_paper_blocks_live():

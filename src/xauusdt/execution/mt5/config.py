@@ -103,6 +103,10 @@ class Mt5Settings:
         MT5_LOGIN_FILE      optional file containing the login/password
                             (e.g. /etc/xauusdt/mt5.secret) — preferred over
                             plain env for passwords.
+        MT5_MAGIC           strategy magic number (int) — idempotency namespace
+                            (required for the write path; default 0 = forbidden)
+        MT5_RUN_ID          run identifier for comment prefix (default:
+                            "forward-paper-v3-candidate-20260716")
     """
 
     login: int
@@ -112,6 +116,8 @@ class Mt5Settings:
     symbol: str = ""  # empty = auto-discover
     mode: str = Mt5Mode.DEMO
     login_file: str = ""
+    magic: int = 0
+    run_id: str = "forward-paper-v3-candidate-20260716"
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Mt5Settings:
@@ -145,6 +151,12 @@ class Mt5Settings:
         except (TypeError, ValueError) as exc:
             raise ModeGuardError(f"MT5_LOGIN must be an integer, got {login!r}.") from exc
 
+        raw_magic = e.get("MT5_MAGIC", "0")
+        try:
+            magic_int = int(raw_magic)
+        except (TypeError, ValueError) as exc:
+            raise ModeGuardError(f"MT5_MAGIC must be an integer, got {raw_magic!r}.") from exc
+
         return cls(
             login=login_int,
             password=password,
@@ -153,6 +165,8 @@ class Mt5Settings:
             symbol=e.get("MT5_SYMBOL", "").strip(),
             mode=raw_mode,
             login_file=login_file,
+            magic=magic_int,
+            run_id=e.get("MT5_RUN_ID", "forward-paper-v3-candidate-20260716").strip(),
         )
 
     @staticmethod
@@ -185,6 +199,12 @@ class Mt5Settings:
             raise ModeGuardError(
                 f"{operation} on a LIVE account requires an explicit runtime guard; "
                 "MT5_MODE=live is not auto-approved."
+            )
+        if operation != "read" and self.magic == 0:
+            # Contract §4.4: magic 0 is forbidden for the write path.
+            raise ModeGuardError(
+                f"{operation} requires MT5_MAGIC != 0 (idempotency namespace); "
+                "refusing write with magic=0."
             )
 
     def __post_init__(self) -> None:

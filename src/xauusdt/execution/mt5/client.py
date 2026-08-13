@@ -157,3 +157,28 @@ class Mt5Client:
         if deals is None:
             raise DisconnectedError(f"history_deals_get() returned None. {self._last_error()}")
         return list(deals)
+
+    # ------------------------------------------------------------ write path
+    # Phase 3 (DEMO ONLY). These methods drive the venue; mode guards are
+    # enforced upstream by Mt5Settings / Mt5ExecutionAdapter before any call.
+
+    def order_check(self, request: dict[str, Any]) -> Any:
+        """Venue-side validation of a request (no state change)."""
+        return self._module().order_check(request)
+
+    def order_send(self, request: dict[str, Any]) -> Any:
+        """Submit a trade request (single submission — caller handles retry)."""
+        return self._module().order_send(request)
+
+    def position_modify(self, *, ticket: int, sl: float, tp: float, symbol: str) -> Any:
+        """Modify SL/TP of an open position."""
+        return self._module().position_modify(ticket=ticket, symbol=symbol, sl=sl, tp=tp)
+
+    def deals_by_comment(self, comment: str) -> list[Any]:
+        """Fetch deals matching a comment (idempotency lookup §4.3.2)."""
+        now_ms = int(time.time() * 1000)
+        from_ms = now_ms - 24 * 3600 * 1000
+        deals = self._module().history_deals_get(from_ms, now_ms)
+        if deals is None:
+            raise DisconnectedError(f"history_deals_get() returned None. {self._last_error()}")
+        return [d for d in deals if str(getattr(d, "comment", "") or "") == comment]

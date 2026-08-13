@@ -31,6 +31,7 @@ def _settings(**overrides):
         password="secret",
         server="Exness-MT5Trial",
         mode="demo",
+        magic=42,
     )
     base.update(overrides)
     return Mt5Settings(
@@ -40,6 +41,8 @@ def _settings(**overrides):
         mode=str(base["mode"]),
         symbol=str(base.get("symbol", "")),
         terminal_path=str(base.get("terminal_path", "")),
+        magic=int(base.get("magic", 42)),
+        run_id=str(base.get("run_id", "test-run")),
     )
 
 
@@ -207,24 +210,14 @@ def test_adapter_symbol_missing_raises(fake_mt5):
 
 
 def test_write_path_not_implemented(fake_mt5):
-    """Phase 2: write methods must raise, never place an order."""
-    from xauusdt.execution.models import OrderKind, OrderSide
-    from xauusdt.execution.orders import OrderIntent
-
+    """Phase 3: write path is implemented — close on an empty venue returns
+    position_not_found; it never sends or raises NotImplementedError."""
     a = Mt5ExecutionAdapter(_settings())
-    intent = OrderIntent(
-        symbol="XAUUSD",
-        side=OrderSide.LONG,
-        kind=OrderKind.MARKET,
-        volume=0.05,
-        entry_price=2400.0,
-    )
-    with pytest.raises(NotImplementedError):
-        a.check_order(intent)
-    with pytest.raises(NotImplementedError):
-        a.place_order(intent)
-    with pytest.raises(NotImplementedError):
-        a.close_position("1")
+    a.connect()  # verifies demo environment, populates _env
+    # close on an empty venue → position_not_found (no venue write attempted)
+    res = a.close_position("1")
+    assert not res.ok
+    assert res.rejection_code == "position_not_found"
 
 
 def test_meta_trader5_never_imported_at_module_level():

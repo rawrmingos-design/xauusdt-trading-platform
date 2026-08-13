@@ -1,23 +1,25 @@
-"""MT5 execution adapter (PROJECT-MT5-001) — Phase 2: READ-ONLY.
+"""MT5 execution adapter (PROJECT-MT5-002, Phase 3 — DEMO ONLY).
 
-Implements the domain :class:`ExecutionAdapter` over the thin
-:class:`Mt5Client`. This phase deliberately supports NO order submission:
-``check_order`` / ``place_order`` / ``modify_position`` / ``close_position``
-inherit the ``NotImplementedError`` defaults from
-:class:`AbstractExecutionAdapter`, so a read-only adapter can never place an
-order even by mistake.
+Implements the full :class:`ExecutionAdapter` contract over the thin
+:class:`Mt5Client`, adding the Phase 3 write path behind the same interface:
 
-The write path (Phase 3) will add demo-only execution behind the same
-interface, gated by ``Mt5Settings.ensure_demo_or_paper``.
+  - submit()            — demo order submission (persist-before-send,
+                          idempotency, bounded retry, SL/TP mandatory)
+  - modify_sl_tp()      — SL/TP update of a position with our magic
+  - close_position()    — full close (partial close not supported)
+  - reconcile()         — intent store vs venue truth (deals > positions > orders)
+  - startup_reconcile() — crash recovery: resolve intents + adopt positions
+                          (strict triple-match: account + magic namespace + symbol)
+
+There is NO live path. ``Mt5Settings.ensure_demo_or_paper`` + the runtime
+``ExecutionEnvironment.allow_execution`` gate every write.
 """
 
 from __future__ import annotations
 
 import logging
 
-from xauusdt.execution.errors import (
-    SymbolUnavailableError,
-)
+from xauusdt.execution.errors import ModeGuardError, SymbolUnavailableError
 from xauusdt.execution.interface import AbstractExecutionAdapter
 from xauusdt.execution.models import (
     AccountSnapshot,
@@ -35,18 +37,30 @@ from xauusdt.execution.mt5.mapper import (
     symbol_to_domain,
     tick_to_domain,
 )
+from xauusdt.execution.mt5.reconcile import Mt5Reconciler, ReconcileReport
+from xauusdt.execution.mt5.store import Mt5IntentStore
+from xauusdt.execution.mt5.writer import Mt5Writer
+from xauusdt.execution.orders import ExecutionResult, OrderIntent
 
 log = logging.getLogger(__name__)
 
 
 class Mt5ExecutionAdapter(AbstractExecutionAdapter):
-    """Read-only MT5 adapter. Write methods raise until Phase 3."""
+    """Demo-only MT5 adapter with the full read + write path."""
 
-    def __init__(self, settings: Mt5Settings) -> None:
+    def __init__(self, settings: Mt5Settings, store: Mt5IntentStore | None = None) -> None:
         self._settings = settings
         self._client = Mt5Client(settings)
         self._resolved_symbol: str | None = None
         self._env: ExecutionEnvironment | None = None
+        self._store = store or Mt5IntentStore(":memory:")
+        self._reconciler = Mt5Reconciler(self._client)
+        self._writer = Mt5Writer(
+            client=self._client,
+            store=self._store,
+            settings=settings,
+            mode_guard=self._write_guard,
+        )
         # Mode guard: a live account may never be touched implicitly.
         self._settings.ensure_demo_or_paper("read")
 
@@ -54,7 +68,6 @@ class Mt5ExecutionAdapter(AbstractExecutionAdapter):
 
     def connect(self) -> None:
         self._client.connect()
-        # Verify configured mode against broker-reported account mode.
         acc = self._client.account_info()
         env = ExecutionEnvironment(
             configured_mode=self._settings.mode,
@@ -62,6 +75,10 @@ class Mt5ExecutionAdapter(AbstractExecutionAdapter):
         )
         env.allow_execution()
         self._env = env
+        # Reconcile namespace = magic range from the store.
+        base, span = self._store.magic_namespace()
+        if span > 0:
+            self._reconciler.set_namespace(base, span)
         log.info(
             "mt5_adapter_connected mode=%s actual=%s",
             self._settings.mode,
@@ -70,11 +87,26 @@ class Mt5ExecutionAdapter(AbstractExecutionAdapter):
 
     def disconnect(self) -> None:
         self._client.disconnect()
+        self._store.close()
         log.info("mt5_adapter_disconnected")
 
     @property
     def connected(self) -> bool:
         return self._client.connected
+
+    def _write_guard(self, operation: str) -> None:
+        """Demo-only guard for every write path entry (§0)."""
+        self._settings.ensure_demo_or_paper(operation)
+        try:
+            if self._env is None:
+                raise ModeGuardError(f"{operation} refused: not connected")
+            self._env.allow_execution()
+        except ModeGuardError:
+            raise
+        except Exception as exc:
+            raise ModeGuardError(
+                f"{operation} refused: environment not verified demo ({exc})"
+            ) from exc
 
     # ------------------------------------------------------------- read path
 
@@ -82,20 +114,7 @@ class Mt5ExecutionAdapter(AbstractExecutionAdapter):
         return account_to_domain(self._client.account_info())
 
     def resolve_symbol(self, symbol: str) -> str:
-        """Resolve the symbol to trade against the venue, fail-safe.
-
-        Explicit symbol (``MT5_SYMBOL``):
-          - query the venue for that exact symbol
-          - verify it exists and is usable (trade mode != NO)
-          - use it; otherwise raise SymbolUnavailableError
-
-        Auto-discovery (empty symbol):
-          - inspect all venue symbols
-          - apply deterministic matching rules for XAUUSD/gold candidates
-          - require EXACTLY ONE acceptable candidate
-          - zero candidates -> fail; multiple candidates -> fail closed
-          - never pick randomly / never pick the first match
-        """
+        """Resolve the symbol to trade against the venue, fail-safe."""
         if symbol:
             info = self._client.symbol_info(symbol)
             if info is None:
@@ -120,28 +139,15 @@ class Mt5ExecutionAdapter(AbstractExecutionAdapter):
 
     @staticmethod
     def _discover_gold_candidates(available: list[str]) -> list[str]:
-        """Deterministic XAUUSD/gold candidate matching.
-
-        Rules (applied in order, case-insensitive, exact on the base):
-          1. Exact names: XAUUSD (plain), and explicit common variants that
-             share the exact XAUUSD prefix (XAUUSDm, XAUUSDc, XAUUSD.pro...)
-             are candidates.
-          2. Any symbol whose base is exactly ``XAUUSD`` (prefix match on the
-             first 6 chars) is a candidate.
-          3. ``GOLD`` (exact, case-insensitive) is a candidate.
-        Symbols are sorted for determinism before returning.
-        """
+        """Deterministic XAUUSD/gold candidate matching (fail-closed)."""
         lower = {s.lower(): s for s in available}
         candidates: list[str] = []
-        # exact gold base symbols
         for name in ("xauusd", "gold"):
             if name in lower:
                 candidates.append(lower[name])
-        # XAUUSD-prefixed variants (XAUUSDm, XAUUSDc, XAUUSD.pro, ...)
         for sym in available:
             if sym.lower().startswith("xauusd") and sym.lower() not in candidates:
                 candidates.append(sym)
-        # dedupe preserving order, sorted for determinism
         seen: set[str] = set()
         ordered: list[str] = []
         for c in sorted(candidates, key=str.lower):
@@ -163,17 +169,112 @@ class Mt5ExecutionAdapter(AbstractExecutionAdapter):
         return [position_to_domain(p) for p in self._client.positions()]
 
     def orders(self) -> list[OrderState]:
-        # Read path: expose venue pending orders as domain states.
         return [order_to_domain(o) for o in self._client.orders()]
 
     def history(self, limit: int = 100) -> list[OrderState]:
-        # Phase 2: no local order history tracked yet.
         return []
 
     # ------------------------------------------------------------- write path
-    # Deliberately NOT implemented in Phase 2: AbstractExecutionAdapter
-    # raises NotImplementedError, so no order can be placed by accident.
+
+    def check_order(self, intent: OrderIntent) -> ExecutionResult:
+        return self._writer.check_order(intent)
+
+    def place_order(self, intent: OrderIntent) -> ExecutionResult:
+        return self._writer.submit(intent)
+
+    def modify_position(
+        self, position_id: str, *, sl: float | None = None, tp: float | None = None
+    ) -> ExecutionResult:
+        return self._writer.modify_sl_tp(position_id, sl=sl, tp=tp)
+
+    def close_position(self, position_id: str) -> ExecutionResult:
+        return self._writer.close_position(position_id)
+
+    # ------------------------------------------------------------- reconcile
 
     def reconcile(self) -> list[str]:
-        # No local state to reconcile yet in Phase 2 (read-only).
-        return []
+        """Reconcile active intents vs venue truth; return mismatch ids.
+
+        Implements the interface contract (list of mismatched ids). The full
+        report (resolved/unresolved/positions) is available via
+        ``reconcile_report()``.
+        """
+        report = self.reconcile_report()
+        return report.mismatches + list(report.unresolved)
+
+    def reconcile_report(self) -> ReconcileReport:
+        """Full reconcile pass: resolve active intents against venue truth."""
+        intents = self._store.intents_in_states(
+            [OrderState.SUBMITTING, OrderState.SUBMITTED, OrderState.PARTIALLY_FILLED]
+        )
+        report = self._reconciler.reconcile(intents)
+        self._apply_report(report)
+        return report
+
+    def startup_reconcile(self) -> ReconcileReport:
+        """Crash recovery (§8.2): resolve intents + adopt open positions.
+
+        Runs BEFORE any new intent is submitted. Adopts only positions that
+        pass strict triple-match (account + magic namespace + symbol).
+        """
+        intents = self._store.intents_in_states(
+            [
+                OrderState.SUBMITTING,
+                OrderState.SUBMITTED,
+                OrderState.PARTIALLY_FILLED,
+                OrderState.UNKNOWN_OUTCOME,
+            ]
+        )
+        report = self._reconciler.reconcile(intents)
+        self._apply_report(report)
+
+        # Adopt open positions: strict triple-match (§8.2 step 4).
+        adopted = self._adopt_positions()
+        report.open_positions.extend(adopted)
+        log.info(
+            "mt5_startup_reconcile resolved=%d unresolved=%d adopted=%d",
+            len(report.resolved),
+            len(report.unresolved),
+            len(adopted),
+        )
+        return report
+
+    def _adopt_positions(self) -> list[str]:
+        """Adopt open positions with our account + magic namespace + symbol."""
+        adopted: list[str] = []
+        try:
+            acc = self._client.account_info()
+            my_login = int(getattr(acc, "login", 0))
+        except Exception:
+            log.exception("adopt_positions_account_failed")
+            return adopted
+        base, span = self._store.magic_namespace()
+        if span <= 0:
+            return adopted
+        allowed_symbols = {self._settings.symbol} if self._settings.symbol else set()
+        for p in self._client.positions() or []:
+            # 1. account identity
+            if int(getattr(p, "login", 0) or 0) != my_login:
+                continue
+            # 2. magic namespace
+            magic = int(getattr(p, "magic", 0) or 0)
+            if not (base <= magic < base + span):
+                continue
+            # 3. symbol / environment
+            sym = str(getattr(p, "symbol", "") or "")
+            if allowed_symbols and sym not in allowed_symbols:
+                continue
+            adopted.append(str(getattr(p, "ticket", 0)))
+            log.info(
+                "mt5_adopted_position ticket=%s symbol=%s magic=%d",
+                getattr(p, "ticket", 0),
+                sym,
+                magic,
+            )
+        return adopted
+
+    def _apply_report(self, report: ReconcileReport) -> None:
+        for rid, state in report.resolved.items():
+            self._store.update_state(rid, state)
+        for rid in report.unresolved:
+            self._store.update_state(rid, OrderState.FAILED_UNKNOWN)
