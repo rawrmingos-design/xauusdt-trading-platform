@@ -19,6 +19,12 @@ class OrderState(Enum):
     CREATED → VALIDATED → RISK_APPROVED → SUBMITTING → SUBMITTED
     SUBMITTED → { REJECTED | PARTIALLY_FILLED | FILLED }
     FILLED → POSITION → CLOSED
+
+    Additional terminal/uncertain states (execution contract):
+    UNKNOWN_OUTCOME — submission outcome unknown (timeout); must reconcile
+    FAILED_UNKNOWN  — reconcile found no evidence; operator decision required
+    EXPIRED         — pending order expired server-side
+    CANCELLED       — pending order cancelled (by operator/strategy)
     """
 
     CREATED = "CREATED"
@@ -31,6 +37,10 @@ class OrderState(Enum):
     FILLED = "FILLED"
     POSITION = "POSITION"
     CLOSED = "CLOSED"
+    UNKNOWN_OUTCOME = "UNKNOWN_OUTCOME"
+    FAILED_UNKNOWN = "FAILED_UNKNOWN"
+    EXPIRED = "EXPIRED"
+    CANCELLED = "CANCELLED"
 
 
 # Allowed transitions per state (whitelist, not just a flat enum).
@@ -40,7 +50,14 @@ _ORDER_TRANSITIONS: dict[OrderState, frozenset[OrderState]] = {
     OrderState.RISK_APPROVED: frozenset({OrderState.SUBMITTING, OrderState.REJECTED}),
     OrderState.SUBMITTING: frozenset({OrderState.SUBMITTED, OrderState.REJECTED}),
     OrderState.SUBMITTED: frozenset(
-        {OrderState.REJECTED, OrderState.PARTIALLY_FILLED, OrderState.FILLED}
+        {
+            OrderState.REJECTED,
+            OrderState.PARTIALLY_FILLED,
+            OrderState.FILLED,
+            OrderState.UNKNOWN_OUTCOME,
+            OrderState.EXPIRED,
+            OrderState.CANCELLED,
+        }
     ),
     OrderState.PARTIALLY_FILLED: frozenset(
         {OrderState.FILLED, OrderState.REJECTED, OrderState.PARTIALLY_FILLED}
@@ -49,6 +66,18 @@ _ORDER_TRANSITIONS: dict[OrderState, frozenset[OrderState]] = {
     OrderState.POSITION: frozenset({OrderState.CLOSED}),
     OrderState.REJECTED: frozenset(),
     OrderState.CLOSED: frozenset(),
+    OrderState.UNKNOWN_OUTCOME: frozenset(
+        {
+            OrderState.SUBMITTED,
+            OrderState.FILLED,
+            OrderState.PARTIALLY_FILLED,
+            OrderState.FAILED_UNKNOWN,
+            OrderState.CANCELLED,
+        }
+    ),
+    OrderState.FAILED_UNKNOWN: frozenset(),
+    OrderState.EXPIRED: frozenset(),
+    OrderState.CANCELLED: frozenset(),
 }
 
 
