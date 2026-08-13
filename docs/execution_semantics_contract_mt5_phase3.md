@@ -14,7 +14,11 @@ OrderIntent
    ↓
 Risk validation (risk engine — unchanged)
    ↓
-mode guard (MT5_MODE=demo + actual account mode=DEMO)
+DEMO mode guard (MT5_MODE=demo + actual account mode=DEMO)
+   ↓
+Validate SL/TP (mandatory — §6.2, reject if missing)
+   ↓
+Idempotency lookup (comment in orders/deals — §4.3)
    ↓
 order_check()       ← validation pass, no state change
    ↓
@@ -23,6 +27,8 @@ order_send()        ← single submission
 retcode classification
    ↓
 reconcile()         ← position/order/deal truth from MT5
+   ↓
+persist actual MT5 truth
    ↓
 MT5 position
 ```
@@ -87,14 +93,17 @@ sufficient. Every submission is followed by `reconcile()` (see §5).
 
 ### 2.2 The rule — resolve by ticket, never resend blindly
 
-On timeout/unknown outcome:
+On timeout/unknown outcome (this includes retcode `TIMEOUT` — **TIMEOUT is
+never auto-retried**, see §2.4):
 
 1. **Do NOT resend the same intent.** Duplicate submission risk (§4) is worse
-   than a missed fill.
+   than a missed fill. A `TIMEOUT` means the request *may* already have been
+   accepted by the broker with the response lost — resending is gambling.
 2. **Enter the `UNKNOWN_OUTCOME` state** for that intent (persisted, see §8).
 3. **Reconcile immediately** (same poll cycle): fetch pending orders +
    positions + deals for the last N seconds and look for a ticket matching our
-   intent fingerprint (symbol + side + volume + timestamp window + magic).
+   intent fingerprint (symbol + side + volume + timestamp window + magic +
+   comment).
 4. **Resolution:**
    - Found matching order/position/deal → submission actually succeeded.
      Update state to `SUBMITTED`/`FILLED` accordingly. Continue normal flow.
@@ -104,12 +113,37 @@ On timeout/unknown outcome:
 5. `UNKNOWN_OUTCOME` intents are never silently dropped; they block
    reconciliation accounting until resolved (or operator overrides).
 
-### 2.3 Retry policy (bounded, only for known-transient)
+### 2.3 Retry policy (bounded, only for known-transient, pre-acceptance)
 
 Only these retcodes auto-retry (max 3 attempts, exponential backoff 1s/2s/4s),
 because they are documented as transient and *pre-acceptance*:
-`REQUOTE`, `PRICE_CHANGED`, `PRICE_OFF`, `TIMEOUT`, `TOO_MANY_REQUESTS`.
+`REQUOTE`, `PRICE_CHANGED`, `PRICE_OFF`.
+**`TIMEOUT` is excluded** — it always follows §2.2 (`UNKNOWN_OUTCOME` →
+reconcile → found? resolve : operator), never auto-retry.
+**`TOO_MANY_REQUESTS` is rate-limit, not an acceptance outcome** — it requires
+the full §2.4 safety sequence before each retry.
 Each retry re-runs `order_check()` first. Anything else → no retry.
+
+### 2.4 TOO_MANY_REQUESTS — safe retry sequence (mandatory)
+
+`TOO_MANY_REQUESTS` (10024) means the venue throttled us. It is *not* evidence
+of acceptance, but we still must not blind-retry — the previous request may
+have slipped through. Every retry of `TOO_MANY_REQUESTS` MUST execute, in order:
+
+```
+TOO_MANY_REQUESTS
+   ↓
+idempotency lookup (comment in orders + deals)     ← §4.3
+   ↓
+orders/deals/reconcile evidence check
+   ↓
+no evidence found  →  order_check()  →  retry (bounded)
+evidence found     →  resolve as SUBMITTED/FILLED, no retry
+```
+
+If the idempotency lookup finds the request already placed/executed, the retry
+is cancelled and the intent resolves from evidence. Retry only proceeds when
+**no evidence** exists. Bound: max 3 attempts, backoff 1s/2s/4s.
 
 ---
 
@@ -243,12 +277,24 @@ have been a close).
   intent; `reconcile()` compares against actual position SL/TP and reports
   drift (does not silently overwrite).
 
-### 6.2 Safety rule
+### 6.2 Safety rule — SL/TP strictly mandatory, no opt-out
 
-SL/TP are **always** attached at entry for demo Phase 3 — a naked position
-(no SL) is a configuration error (`MissingStopError`) unless the strategy
-explicitly opted out and the operator approved. Rationale: we are touching
-money, even demo; the habit must be correct from day one.
+SL/TP are **mandatory at every entry** for demo Phase 3. There is **no
+opt-out and no exception**: an entry intent without both SL and TP is
+rejected before it reaches the venue (`MissingStopError` / `MissingTakeProfitError`
+— the exact error depends on which is absent).
+
+```
+Entry without SL/TP
+   ↓
+REJECT (before order_check / order_send)
+```
+
+Rationale: we are touching money, even demo; the habit must be correct from
+day one. If a strategy ever legitimately needs a position without a protective
+stop, that becomes a separate decision + experiment (new project gate), never
+an escape hatch in the production adapter. This section is intentionally
+without a `unless` clause.
 
 ---
 
@@ -296,6 +342,13 @@ state (SUBMITTED/FILLED/PARTIALLY_FILLED/UNKNOWN_OUTCOME/FAILED/EXPIRED/CANCELLE
 sl/tp  open_position_ticket  deal_tickets[]  created_at  updated_at
 ```
 
+**Persist-before-send**: the `request_id` (comment) sequence number is
+allocated and **persisted before** `order_send()` is ever called, not after.
+The intent row (with its final comment) exists in the store before the
+submission leaves the process. This guarantees crash-mid-send recovery
+(§8.3) has a comment to look up. The `seq` counter itself is also persisted
+(monotonic, survives restart).
+
 ### 8.2 Startup sequence
 
 On every process start (before any new intent is sent):
@@ -306,20 +359,31 @@ On every process start (before any new intent is sent):
 3. Outcomes:
    - `FILLED` → if the strategy is alive, hand the fill back (callback/event);
      if not, record it — next strategy startup sees the open position via
-     `positions_get()` and adopts it (magic match).
+     `positions_get()` and adopts it (see step 4).
    - `UNKNOWN_OUTCOME` that now resolves → resolve to actual state.
    - Still unresolved → `FAILED_UNKNOWN`, operator alert.
-4. **Adopt open positions**: all open MT5 positions with our magic (including
-   ones the process never saw — e.g. created during downtime) are loaded as
-   `PositionSnapshot`s into the execution state. This is the crash-recovery
-   guarantee: *whatever is open with our magic is ours to manage.*
+4. **Adopt open positions — strict triple-match.** A position is adopted only
+   when **all three** match:
+   1. **Broker/account identity** — the position's account (`login`) equals the
+      connected account (from `account_info()`); we never adopt across accounts.
+   2. **Magic namespace** — `position.magic` is inside our configured magic
+      namespace (a range, e.g. `[base, base+span)`, not just one number).
+      A different strategy on the same account using a different magic is
+      **never** adopted or modified by us.
+   3. **Symbol/environment** — the position's symbol is one of the configured
+      trading symbols for this deployment (`MT5_SYMBOL` / allowed set) and the
+      environment (demo vs real) matches.
+   Only positions passing all three are loaded as `PositionSnapshot`s into
+   execution state. This is the crash-recovery guarantee: *whatever is open
+   with our account + magic namespace + symbol is ours to manage — nothing
+   else.*
 5. Only after steps 1–4 complete may new intents be submitted.
 
 ### 8.3 Crash mid-`order_send()`
 
-The comment idempotency (§4.3.2) covers this: after restart, the comment
-lookup finds the deal/order created by the half-completed send and resolves
-the intent without re-submitting.
+The comment idempotency (§4.3.2) + persist-before-send (§8.1) covers this:
+after restart, the comment lookup finds the deal/order created by the
+half-completed send and resolves the intent without re-submitting.
 
 ---
 
@@ -373,17 +437,23 @@ retcode-classified (§1), and followed by `reconcile()`.
 
 ---
 
-## 11. Open questions for Tech Lead (decision needed before implementation)
+## 11. Tech Lead decisions — LOCKED (2026-08-13 review)
 
-1. **Auto-close on shutdown**: default `false` (position left open, logged) —
-   confirm.
-2. **Partial-fill remainder**: strategy decides; no auto-replace — confirm.
-3. **UNKNOWN_OUTCOME resolution**: operator action required; no auto-retry —
-   confirm.
-4. **SL/TP mandatory at entry** for Phase 3 (no naked positions) — confirm.
-5. **Full close only** in Phase 3 (partial close deferred) — confirm.
+These were the open questions in the first draft; the Tech Lead has decided.
+They are normative, not negotiable in Phase 3:
+
+| # | Decision | Value |
+|---|---|---|
+| 1 | Auto-close on shutdown | **FALSE** — position left open, logged + alert; `startup_reconcile()` at next start |
+| 2 | Partial-fill remainder | **No auto-replace** — strategy decides (cancel / leave / widen) |
+| 3 | UNKNOWN_OUTCOME resolution | **Reconcile first, then operator** — no blind retry; unresolved → operator action |
+| 4 | SL/TP at entry | **WAJIB every entry, no opt-out** (§6.2) — missing → REJECT before venue |
+| 5 | Partial close | **Not supported** — full close only; partial close `NotImplementedError` |
 
 ---
 
 *End of contract. Implementation of `order_send()` begins only after Tech Lead
-approval of this document (and answers to §11).*
+approval of this document. Status as of 2026-08-13: **design approved
+conditionally** — four normative corrections (TIMEOUT retry, TOO_MANY_REQUESTS
+safe-retry, SL/TP mandatory, strict position adoption + persist-before-send)
+applied; after TL confirmation, Phase 3 implementation may proceed.*
